@@ -8,7 +8,7 @@ from . import config
 elbv2 = boto3.client('elbv2', region_name=config.REGION_NAME)
 ec2 = boto3.client('ec2', region_name=config.REGION_NAME)
 
-def setup_load_balancer(alb_name, security_group_id, subnet_ids, instance_ids):
+def setup_load_balancer(alb_name, security_group_id, subnet_ids, instance_ids, health_check_path='/'):
     """
     Ensures a complete ALB setup exists, creating components as needed.
     """
@@ -17,7 +17,7 @@ def setup_load_balancer(alb_name, security_group_id, subnet_ids, instance_ids):
     
     # 2. Ensure Target Group exists
     tg_name = f"{alb_name}-tg"
-    target_group_arn = _create_target_group(tg_name)
+    target_group_arn = _create_target_group(tg_name, health_check_path)
     
     # 3. Register targets 
     print("Registering instances with Target Group...")
@@ -53,13 +53,14 @@ def _create_load_balancer(alb_name, security_group_id, subnet_ids):
         else:
             raise
 
-def _create_target_group(tg_name):
+def _create_target_group(tg_name, health_check_path='/'):
     """Creates a new Target Group."""
     try:
         vpc_id = ec2.describe_vpcs()['Vpcs'][0]['VpcId']
         tg_response = elbv2.create_target_group(
             Name=tg_name, Protocol='HTTP', Port=80, VpcId=vpc_id,
-            HealthCheckProtocol='HTTP', HealthCheckPath='/',
+            HealthCheckProtocol='HTTP', HealthCheckPath=health_check_path,
+            HealthCheckIntervalSeconds=30,  # Check every 30 seconds as per worksheet
             TargetType='instance'
         )
         tg_arn = tg_response['TargetGroups'][0]['TargetGroupArn']
