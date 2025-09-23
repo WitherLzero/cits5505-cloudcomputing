@@ -715,6 +715,600 @@ The Django application successfully connected to AWS DynamoDB, retrieved the fil
 
 #  Lab 7
 
+## Create an EC2 instance
+
+### [1] Run Lab 7 EC2 setup script
+
+Similarly to what I did in Lab 5 and Lab 6, I reused my existing EC2 management infrastructure to create the instance needed for Lab 7.
+
+#### Code:
+
+```python
+# lab7_main.py
+# Main script to set up the infrastructure for Lab 7.
+
+import sys
+import os
+
+# Add project root to the path to allow importing from 'utils'
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, project_root)
+
+from utils import config
+from utils import ec2_manager
+from botocore.exceptions import ClientError
+
+if __name__ == "__main__":
+    try:
+        print("--- Starting Lab 7 Infrastructure Setup ---")
+
+        # Create the key pair
+        ec2_manager.create_key_pair(config.LAB7_KEY_NAME)
+        print(f"Ensured key pair '{config.LAB7_KEY_NAME}' is available.")
+
+        # Define security rules (SSH + HTTP + Django dev server)
+        lab7_sg_rules = [
+            {'IpProtocol': 'tcp', 'FromPort': 22, 'ToPort': 22, 'IpRanges': [{'CidrIp': '0.0.0.0/0'}]},
+            {'IpProtocol': 'tcp', 'FromPort': 80, 'ToPort': 80, 'IpRanges': [{'CidrIp': '0.0.0.0/0'}]},
+        ]
+        sg_id = ec2_manager.create_security_group(
+            config.LAB7_SECURITY_GROUP_NAME,
+            "Security Group for Lab 7 DevOps",
+            lab7_sg_rules
+        )
+
+        # Launch instance
+        print("\nLaunching instance...")
+        instance_name = f"{config.STUDENT_NUMBER}-vm-lab7"
+        instance_id = ec2_manager.setup_instance(
+            name=instance_name,
+            ami_id=config.AMI_ID,
+            instance_type=config.LAB7_INSTANCE_TYPE,
+            key_name=config.LAB7_KEY_NAME,
+            sg_id=sg_id
+        )
+
+        # Get IP and print connection info
+        print("\nWaiting for instance to initialize...")
+        ip = ec2_manager.get_instance_ip(instance_id)
+        print(f"-> {instance_name} is running at Public IP: {ip}")
+        print(f"-> SSH command: ssh -i {config.LAB7_KEY_NAME}.pem ubuntu@{ip}")
+
+        print("\n--- EC2 Setup Complete ---")
+
+    except Exception as e:
+        print(f"\nError occurred: {e}")
+    except Exception as e:
+        print(f"\nAn error occurred: {e}")
+```
+
+#### Result:
+
+The script successfully created the Lab 7 EC2 infrastructure with the public IP address that will be used for Fabric automation.
+
+[Screenshot of our script output with the public IP we will use later]
+
+## Install and configure Fabric
+
+### [1] Install Fabric locally
+
+I installed Fabric using Python's package manager to enable remote server automation capabilities.
+
+#### Command:
+
+```bash
+pip install fabric
+```
+
+#### Explanation:
+
+Fabric is a Python library designed for streamlining remote server administration and deployment automation via SSH connections. It provides a high-level interface for executing shell commands remotely, managing SSH connections, and automating complex deployment workflows. Fabric abstracts away the complexity of SSH operations while maintaining the flexibility to execute arbitrary commands on remote servers.
+
+
+
+### [2] Create SSH configuration
+
+To enable seamless SSH connectivity to the EC2 instance, I configured SSH settings with a host alias for easier connection management.
+
+#### Command:
+
+```bash
+mkdir -p ~/.ssh
+cp /root/_codes/cits5503/lab7/24745401-key-lab7.pem ~/.ssh/
+chmod 600 ~/.ssh/24745401-key-lab7.pem
+nano ~/.ssh/config
+```
+
+#### Code:
+
+```
+Host 24745401-vm-lab7
+	Hostname 51.20.37.169
+	User ubuntu
+	UserKnownHostsFile /dev/null
+	StrictHostKeyChecking no
+	PasswordAuthentication no
+	IdentityFile ~/.ssh/24745401-key-lab7.pem
+```
+
+
+### [3] Test Fabric connection
+
+Last I verified that Fabric could successfully connect to the EC2 instance and execute remote commands.
+
+#### Command:
+
+```bash
+python3 -c "from fabric import Connection; c = Connection('24745401-vm-lab7'); result = c.run('uname -s'); print('Connection test result:', result.stdout.strip())"
+```
+
+#### Result:
+
+The connection test successfully returned "Linux", confirming that Fabric could connect to the EC2 instance and execute remote commands.
+
+[Screenshot showing successful connection test returning "Linux"]
+
+## Use Fabric for automation
+
+### [1] Create Fabric deployment manager
+
+To implement comprehensive automation for Django deployment, I developed an enhanced Fabric deployment manager that provides complete application lifecycle management with service-like operations.
+
+#### Code:
+
+```python
+# fabric_manager.py - Main deployment manager class
+from fabric import Connection
+import sys
+import time
+import argparse
+
+class DjangoDeploymentManager:
+    def __init__(self, host):
+        self.host = host
+        self.c = Connection(host)
+        self.app_dir = '/opt/wwc/mysites/lab'
+        self.venv_dir = '/opt/wwc/mysites/myvenv'
+        self.log_file = '/opt/wwc/mysites/lab/django.log'
+```
+
+#### Explanation:
+
+This class establishes the foundation for automated Django deployment management:
+
+- **Connection Management**: The `Connection(host)` object manages SSH connectivity to the remote EC2 instance, handling authentication and session management automatically
+- **Path Configuration**: Critical directory paths are centralized as class attributes, ensuring consistency across all deployment operations and matching the Lab 6 directory structure
+- **Service Architecture**: The class design follows service-oriented principles, encapsulating all deployment logic within a single manageable interface
+
+#### Code:
+
+```python
+# Environment checking and status reporting functions
+def check_environment(self):
+    """Check what components are already installed/configured"""
+    status = {
+        'system_packages': False,
+        'venv_exists': False,
+        'django_project': False,
+        'nginx_configured': False,
+        'django_running': False
+    }
+
+    # Check system packages
+    result = self.c.run('which python3 && which nginx', warn=True)
+    status['system_packages'] = result.return_code == 0
+
+    # Check virtual environment
+    result = self.c.run(f'test -d {self.venv_dir}', warn=True)
+    status['venv_exists'] = result.return_code == 0
+
+    # Check Django project
+    result = self.c.run(f'test -f {self.app_dir}/manage.py', warn=True)
+    status['django_project'] = result.return_code == 0
+
+    # Check nginx configuration
+    result = self.c.run('grep -q "proxy_pass.*8000" /etc/nginx/sites-enabled/default', warn=True)
+    status['nginx_configured'] = result.return_code == 0
+
+    # Check if Django is running
+    result = self.c.run('ps aux | grep "manage.py runserver" | grep -v grep', warn=True)
+    status['django_running'] = result.return_code == 0
+
+    return status
+
+def status(self):
+    """Show deployment status"""
+    print("📊 Deployment Status:")
+    status = self.check_environment()
+
+    # Format status in a clean table
+    status_items = [
+        ("System Packages", status['system_packages']),
+        ("Virtual Environment", status['venv_exists']),
+        ("Django Project", status['django_project']),
+        ("Nginx Configured", status['nginx_configured']),
+        ("Django Running", status['django_running'])
+    ]
+
+    for item, is_ok in status_items:
+        status_icon = '✅' if is_ok else '❌'
+        print(f"   {item:<20} {status_icon}")
+
+    if status['django_running']:
+        print(f"   🌐 Access: http://{self.c.host}/polls/")
+
+    return status
+```
+
+#### Explanation:
+
+These functions implement environment monitoring and status reporting:
+
+- **Idempotent Checking**: The `check_environment()` function verifies deployment components without making changes
+- **Status Presentation**: The `status()` function provides clean output with visual indicators (✅/❌)
+- **Access Information**: Automatically displays the access URL when Django server is running
+
+#### Code:
+
+```python
+# System setup and environment preparation functions
+def install_system_packages(self):
+    """Install system packages only if needed"""
+    print("📦 Checking system packages...")
+
+    # Check what's missing
+    missing_packages = []
+    packages = ['python3', 'python3-pip', 'python3-venv', 'nginx', 'git']
+
+    for package in packages:
+        result = self.c.run(f'dpkg -l | grep -q "^ii.*{package}"', warn=True)
+        if result.return_code != 0:
+            missing_packages.append(package)
+
+    if missing_packages:
+        print(f"   Installing missing packages: {', '.join(missing_packages)}")
+        self.c.sudo('apt update')
+        self.c.sudo(f'apt install -y {" ".join(missing_packages)}')
+    else:
+        print("   ✅ All system packages already installed")
+
+def setup_environment(self):
+    """Set up directory structure and virtual environment"""
+    print("🏗️  Setting up environment...")
+
+    # Create directory structure
+    self.c.sudo('mkdir -p /opt/wwc/mysites')
+    self.c.sudo('chown ubuntu:ubuntu /opt/wwc/mysites')
+
+    # Check if virtual environment exists
+    if not self.c.run(f'test -d {self.venv_dir}', warn=True).return_code == 0:
+        print("   Creating virtual environment...")
+        self.c.run(f'cd /opt/wwc/mysites && python3 -m venv myvenv')
+        self.c.run(f'cd /opt/wwc/mysites && source myvenv/bin/activate && pip install django boto3')
+    else:
+        print("   ✅ Virtual environment already exists")
+        # Ensure packages are installed
+        self.c.run(f'cd /opt/wwc/mysites && source myvenv/bin/activate && pip install --quiet django boto3')
+```
+
+#### Explanation:
+
+These functions demonstrate intelligent package management and environment setup:
+
+- **Smart Package Installation**: Only installs missing packages, making repeated runs efficient
+- **Directory Structure**: Creates the Lab 6-compatible `/opt/wwc/mysites` structure
+- **Virtual Environment**: Sets up Python isolation with Django and boto3 dependencies
+
+#### Code:
+
+```python
+# Django application deployment and configuration
+def deploy_django_app(self, force_recreate=False):
+    """Deploy Django application (idempotent)"""
+    print("🚀 Deploying Django application...")
+
+    # Check if Django project exists
+    project_exists = self.c.run(f'test -f {self.app_dir}/manage.py', warn=True).return_code == 0
+
+    if project_exists and not force_recreate:
+        print("   ✅ Django project already exists, updating code only...")
+        self._update_django_code()
+    else:
+        if project_exists:
+            print("   🔄 Force recreating Django project...")
+            self.c.run(f'rm -rf {self.app_dir}', warn=True)
+
+        print("   Creating new Django project...")
+        self._create_django_project()
+
+    # Always run migrations (safe to run multiple times)
+    print("   Running Django migrations...")
+    self.c.run(f'cd {self.app_dir} && source ../myvenv/bin/activate && python3 manage.py migrate')
+
+def _create_django_project(self):
+    """Create fresh Django project with all configurations"""
+    # Create Django project
+    self.c.run('cd /opt/wwc/mysites && source myvenv/bin/activate && django-admin startproject lab')
+    self.c.run(f'cd {self.app_dir} && source ../myvenv/bin/activate && python3 manage.py startapp polls')
+
+    # Create templates directory
+    self.c.run(f'mkdir -p {self.app_dir}/polls/templates')
+
+    # Deploy all configurations
+    self._update_django_code()
+```
+
+#### Explanation:
+
+The Django deployment functions implement smart project management:
+
+- **Project Detection**: Checks for existing Django projects to avoid unnecessary recreation
+- **Force Recreation**: Supports complete project rebuild when needed with `--force` flag
+- **Modular Design**: Separates project creation from code updates for flexibility
+
+#### Code:
+
+```python
+# Django code deployment and nginx configuration
+def _update_django_code(self):
+    """Update Django code (views, templates, settings)"""
+    # Update Django settings with Lab 7 configuration
+    # ... settings content including ALLOWED_HOSTS, INSTALLED_APPS, etc. ...
+    self.c.run(f'cat > {self.app_dir}/lab/settings.py << "EOF"\n{settings_content}\nEOF')
+
+    # Create enhanced HTML template with professional styling
+    # ... template content with CSS styling and Django template tags ...
+    self.c.run(f'cat > {self.app_dir}/polls/templates/files.html << "EOF"\n{template_content}\nEOF')
+
+    # Update views with DynamoDB integration
+    views_content = '''from django.template import loader
+from django.http import HttpResponse
+import boto3
+
+def index(request):
+    template = loader.get_template('files.html')
+    try:
+        # Use default credentials (from ~/.aws/credentials or environment variables)
+        dynamodb = boto3.resource('dynamodb', region_name='eu-north-1')
+        table = dynamodb.Table("UserFiles")
+        response = table.scan()
+        items = response.get('Items', [])
+        context = {'items': items}
+        return HttpResponse(template.render(context, request))
+    except Exception as e:
+        # ... error handling ...
+'''
+    self.c.run(f'cat > {self.app_dir}/polls/views.py << "EOF"\n{views_content}\nEOF')
+
+    # Update URL configurations for polls and main project
+    # ... polls/urls.py and lab/urls.py content ...
+
+def configure_nginx(self):
+    """Configure nginx (idempotent)"""
+    print("🌐 Configuring nginx...")
+
+    # Check if already configured
+    result = self.c.run('grep -q "proxy_pass.*8000" /etc/nginx/sites-enabled/default', warn=True)
+    if result.return_code == 0:
+        print("   ✅ Nginx already configured")
+        return
+
+    nginx_config = '''server {
+  listen 80 default_server;
+  listen [::]:80 default_server;
+  location / {
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_pass http://127.0.0.1:8000;
+  }
+}'''
+    self.c.run(f"echo '{nginx_config}' > /tmp/nginx_default")
+    self.c.sudo('cp /tmp/nginx_default /etc/nginx/sites-enabled/default')
+    self.c.sudo('systemctl restart nginx')
+    print("   ✅ Nginx configured and restarted")
+```
+
+#### Explanation:
+
+These functions handle the core application configuration and web server setup:
+
+- **Django Configuration**: Updates settings, templates, and views to recreate the Lab 6 cloud storage interface with DynamoDB integration
+- **Enhanced Styling**: Implements professional CSS styling for the file display interface
+- **Nginx Reverse Proxy**: Configures nginx to proxy requests from port 80 to Django on port 8000, enabling standard web access
+
+#### Code:
+
+```python
+# Service management functions
+def start_django(self):
+    """Start Django server (only if not running)"""
+    print("🚀 Starting Django server...")
+
+    # Check if already running
+    result = self.c.run('ps aux | grep "manage.py runserver" | grep -v grep', warn=True)
+    if result.return_code == 0:
+        print("   ✅ Django server already running")
+        return True
+
+    # Start Django server using setsid to properly detach
+    start_cmd = f'cd {self.app_dir} && source ../myvenv/bin/activate && python3 manage.py runserver 0.0.0.0:8000 > {self.log_file} 2>&1'
+    self.c.run(f'setsid bash -c "{start_cmd}" < /dev/null > /dev/null 2>&1 &', warn=True)
+
+    # Wait and verify
+    time.sleep(3)
+    result = self.c.run('ps aux | grep "manage.py runserver" | grep -v grep', warn=True)
+    if result.return_code == 0:
+        print("   ✅ Django server started successfully")
+        return True
+    else:
+        print("   ❌ Failed to start Django server")
+        return False
+
+def stop_django(self):
+    """Stop Django server"""
+    print("🛑 Stopping Django server...")
+    result = self.c.run('pkill -f "manage.py runserver"', warn=True)
+    if result.return_code == 0:
+        print("   ✅ Django server stopped")
+    else:
+        print("   ℹ️  No Django server was running")
+    time.sleep(2)
+
+def restart_django(self):
+    """Restart Django server"""
+    self.stop_django()
+    time.sleep(1)
+    return self.start_django()
+```
+
+#### Explanation:
+
+These service management functions provide standard lifecycle operations:
+
+- **Process Detachment**: Uses `setsid` to properly detach Django processes from Fabric session
+- **Status Checking**: Verifies server state before attempting start/stop operations
+- **Service Lifecycle**: Implements standard start, stop, and restart operations like system services
+
+#### Code:
+
+```python
+# Main deployment orchestration
+def deploy(self, force_recreate=False):
+    """Full deployment process (idempotent)"""
+    print(f"🚀 Starting deployment to {self.host}...")
+
+    try:
+        self.install_system_packages()
+        self.setup_environment()
+        self.deploy_django_app(force_recreate)
+        self.configure_nginx()
+
+        if self.start_django():
+            print(f"\n🎉 Deployment successful!")
+            print(f"🌐 Access: http://{self.c.host}/polls/")
+            return True
+        else:
+            print(f"\n❌ Deployment failed!")
+            return False
+
+    except Exception as e:
+        print(f"\n❌ Deployment error: {e}")
+        return False
+
+# Command-line interface
+def main():
+    parser = argparse.ArgumentParser(description='Django Deployment Manager')
+    parser.add_argument('action', choices=['deploy', 'start', 'stop', 'restart', 'status', 'logs'],
+                       help='Action to perform')
+    parser.add_argument('--force', action='store_true',
+                       help='Force recreate Django project (for deploy action)')
+    parser.add_argument('--host', default='24745401-vm-lab7',
+                       help='SSH host to connect to')
+
+    args = parser.parse_args()
+    manager = DjangoDeploymentManager(args.host)
+
+    if args.action == 'deploy':
+        manager.deploy(force_recreate=args.force)
+    elif args.action == 'start':
+        manager.start_django()
+    elif args.action == 'stop':
+        manager.stop_django()
+    elif args.action == 'restart':
+        manager.restart_django()
+    elif args.action == 'status':
+        manager.status()
+
+if __name__ == "__main__":
+    main()
+```
+
+#### Explanation:
+
+The main deployment orchestration provides complete automation:
+
+- **Sequential Deployment**: Coordinates all deployment steps in correct order
+- **Command-line Interface**: Enables service manager functionality with argparse
+- **Error Handling**: Provides comprehensive exception handling and status reporting
+
+### [2] Execute automated deployment
+
+I executed the complete Django deployment automation using the Fabric deployment manager.
+
+#### Command:
+
+```bash
+python3 fabric_manager.py deploy
+```
+
+#### Result:
+
+The script executed successfully, completing all deployment steps including system package installation, virtual environment setup, Django project creation, nginx configuration, and server startup. The deployment process was fully automated and the Django cloud storage application was ready for access.
+
+[Screenshot of deployment execution showing all steps completing and Django cloud storage app deployed]
+
+### [3] Verify deployed application
+
+After successful deployment, I verified that the cloud storage application was functioning correctly and displaying data from the DynamoDB table.
+
+#### Result
+
+The application successfully displayed the cloud storage interface with files retrieved from the UserFiles DynamoDB table, featuring enhanced CSS styling and proper error handling.
+
+[Screenshot of Django cloud storage application displaying files from DynamoDB with enhanced styling]
+
+### [4] Test service management capabilities
+
+I tested the enhanced deployment manager's service lifecycle operations to verify complete functionality.
+
+#### Command:
+
+```bash
+python3 fabric_manager.py status
+```
+
+#### Result:
+
+The status command displayed a clean overview of all deployment components with proper alignment and visual indicators.
+
+[Screenshot showing clean status display with all components marked as ✅]
+
+#### Command:
+
+```bash
+python3 fabric_manager.py stop
+```
+
+#### Result:
+
+The stop command successfully terminated the Django server processes and confirmed the shutdown.
+
+[Screenshot showing successful Django server stop operation]
+
+#### Command:
+
+```bash
+python3 fabric_manager.py start
+```
+
+#### Result:
+
+The start command launched the Django server and verified it was running properly without hanging the Fabric session.
+
+[Screenshot showing successful Django server start operation]
+
+#### Command:
+
+```bash
+python3 fabric_manager.py restart
+```
+
+#### Result:
+
+The restart command performed a clean stop followed by start operation, demonstrating complete service lifecycle management.
+
+[Screenshot showing successful Django server restart operation]
+
 <div style="page-break-after: always;"></div>
 
 # Lab 8
