@@ -5,6 +5,8 @@
 STUDENT_NUMBER = "24745401"
 REGION_NAME = "eu-north-1" 
 AMI_ID = "ami-042b4708b1d05f512" 
+ACCOUNT_ID = "489389878001"
+MY_SECURITY_GROUP_NAME = f"{STUDENT_NUMBER}-sg"
 
 # --- Lab 5 Specific Configuration ---
 LAB5_KEY_NAME = f"{STUDENT_NUMBER}-key-lab5"
