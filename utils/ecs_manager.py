@@ -43,10 +43,6 @@ def create_ecs_task_definition(
                 ]
             },
         ],
-        runtimePlatform={           
-            'cpuArchitecture': 'ARM64',
-            'operatingSystemFamily': 'LINUX'
-        }
     )
     return response
 
