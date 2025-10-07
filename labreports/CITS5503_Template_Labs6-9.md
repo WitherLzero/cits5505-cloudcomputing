@@ -1,4 +1,7 @@
-﻿<div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh;">
+
+
+<div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh;">
+
 
   <h2>Labs 6-9</h2>
 
@@ -786,7 +789,9 @@ if __name__ == "__main__":
 
 The script successfully created the Lab 7 EC2 infrastructure with the public IP address that will be used for Fabric automation.
 
-[Screenshot of our script output with the public IP we will use later]
+![image-20250923225224605](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20250923225224605.png) 
+
+
 
 ## Install and configure Fabric
 
@@ -803,8 +808,6 @@ pip install fabric
 #### Explanation:
 
 Fabric is a Python library designed for streamlining remote server administration and deployment automation via SSH connections. It provides a high-level interface for executing shell commands remotely, managing SSH connections, and automating complex deployment workflows. Fabric abstracts away the complexity of SSH operations while maintaining the flexibility to execute arbitrary commands on remote servers.
-
-
 
 ### [2] Create SSH configuration
 
@@ -846,7 +849,9 @@ python3 -c "from fabric import Connection; c = Connection('24745401-vm-lab7'); r
 
 The connection test successfully returned "Linux", confirming that Fabric could connect to the EC2 instance and execute remote commands.
 
-[Screenshot showing successful connection test returning "Linux"]
+![image-20250923225314504](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20250923225314504.png) 
+
+
 
 ## Use Fabric for automation
 
@@ -1064,6 +1069,7 @@ def _update_django_code(self):
     views_content = '''from django.template import loader
 from django.http import HttpResponse
 import boto3
+from botocore.exceptions import ClientError
 
 def index(request):
     template = loader.get_template('files.html')
@@ -1075,10 +1081,10 @@ def index(request):
         items = response.get('Items', [])
         context = {'items': items}
         return HttpResponse(template.render(context, request))
-    except Exception as e:
+    except ClientError as e:
         # ... error handling ...
 '''
-    self.c.run(f'cat > {self.app_dir}/polls/views.py << "EOF"\n{views_content}\nEOF')
+        self.c.run(f'cat > {self.app_dir}/polls/views.py << "EOF"\n{views_content}\nEOF')
 
     # Update URL configurations for polls and main project
     # ... polls/urls.py and lab/urls.py content ...
@@ -1245,17 +1251,19 @@ python3 fabric_manager.py deploy
 
 The script executed successfully, completing all deployment steps including system package installation, virtual environment setup, Django project creation, nginx configuration, and server startup. The deployment process was fully automated and the Django cloud storage application was ready for access.
 
-[Screenshot of deployment execution showing all steps completing and Django cloud storage app deployed]
+![image-20250923225428076](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20250923225428076.png) 
+
+![image-20250923225443215](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20250923225443215.png) 
 
 ### [3] Verify deployed application
 
-After successful deployment, I verified that the cloud storage application was functioning correctly and displaying data from the DynamoDB table.
+After successful deployment, I accessed to my web app and verified that the cloud storage application was functioning correctly and displaying data from the DynamoDB table.
 
 #### Result
 
 The application successfully displayed the cloud storage interface with files retrieved from the UserFiles DynamoDB table, featuring enhanced CSS styling and proper error handling.
 
-[Screenshot of Django cloud storage application displaying files from DynamoDB with enhanced styling]
+![image-20250923225557074](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20250923225557074.png) 
 
 ### [4] Test service management capabilities
 
@@ -1271,7 +1279,7 @@ python3 fabric_manager.py status
 
 The status command displayed a clean overview of all deployment components with proper alignment and visual indicators.
 
-[Screenshot showing clean status display with all components marked as ✅]
+![image-20250923225747518](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20250923225747518.png) 
 
 #### Command:
 
@@ -1283,7 +1291,9 @@ python3 fabric_manager.py stop
 
 The stop command successfully terminated the Django server processes and confirmed the shutdown.
 
-[Screenshot showing successful Django server stop operation]
+![image-20250923225824925](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20250923225824925.png) 
+
+![image-20250923225845340](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20250923225845340.png) 
 
 #### Command:
 
@@ -1295,7 +1305,9 @@ python3 fabric_manager.py start
 
 The start command launched the Django server and verified it was running properly without hanging the Fabric session.
 
-[Screenshot showing successful Django server start operation]
+![image-20250923225927871](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20250923225927871.png) 
+
+![image-20250923225949336](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20250923225949336.png) 
 
 #### Command:
 
@@ -1307,13 +1319,436 @@ python3 fabric_manager.py restart
 
 The restart command performed a clean stop followed by start operation, demonstrating complete service lifecycle management.
 
-[Screenshot showing successful Django server restart operation]
+![image-20250923230042341](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20250923230042341.png) 
 
 <div style="page-break-after: always;"></div>
 
 # Lab 8
 
-<div style="page-break-after: always;"></div>
+## Create a Dockerfile and build a Docker image
+
+### [1] Create and build the Dockerfile
+
+First, I created a `Dockerfile` as specified in the lab worksheet to containerize the Jupyter environment with all necessary dependencies for the SageMaker task.
+
+#### Code:
+
+```dockerfile
+FROM python:3.10
+
+RUN pip install jupyter boto3 sagemaker awscli
+RUN mkdir /notebook
+
+# Use a sample access token
+ENV JUPYTER_ENABLE_LAB=yes
+ENV JUPYTER_TOKEN="CITS5503"
+
+# Allow access from ALL IPs
+RUN jupyter notebook --generate-config
+RUN echo "c.NotebookApp.ip = '0.0.0.0'" >> /root/.jupyter/jupyter_notebook_config.py
+
+# Copy the ipynb file
+RUN wget -P /notebook https://raw.githubusercontent.com/zhangzhics/CITS5503_Sem2/master/Labs/src/LabAI.ipynb
+
+WORKDIR /notebook
+EXPOSE 8888
+
+CMD ["jupyter", "notebook", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root"]
+```
+
+#### Explanation:
+
+This Dockerfile sets up a complete, portable environment for our AI task:
+- **`FROM python:3.10`**: Starts with a standard Python 3.10 base image.
+- **`RUN pip install ...`**: Installs all required Python libraries, including `jupyter` for the notebook, `boto3` and `sagemaker` for AWS interaction, and the `awscli`.
+- **`ENV JUPYTER_TOKEN="CITS5503"`**: Sets a static token for accessing the Jupyter notebook, simplifying access.
+- **`RUN echo "c.NotebookApp.ip = '0.0.0.0'"`**: Configures Jupyter to accept connections from any IP address, which is essential for accessing it when it's running in an ECS container.
+- **`RUN wget ...`**: Downloads the `LabAI.ipynb` notebook directly into the container, ensuring it's available on startup.
+- **`EXPOSE 8888`**: Documents that the container will listen on port 8888.
+- **`CMD [...]`**: Specifies the default command to run when the container starts, launching the Jupyter notebook server.
+
+#### Command:
+
+I then built the Docker image from the Dockerfile.
+
+```bash
+docker build -t 24745401-lab8 .
+```
+
+### [2] Test the Docker image locally
+
+To verify the image was built correctly, I ran it locally.
+
+#### Command:
+
+```bash
+docker run -p 8888:8888 24745401-lab8
+```
+
+#### Result:
+
+The container started successfully, and I was able to access the Jupyter notebook by navigating to `http://127.0.0.1:8888` in my browser. This confirmed the environment was set up correctly and the notebook was present.
+
+![image_2025-10-06_06-51-21](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image_2025-10-06_06-51-21.png) 
+
+## Prepare ECR via Boto3 scripts
+
+### [1] Create ECR repository
+
+Next, I used a Python script to programmatically create an Amazon Elastic Container Registry (ECR) repository to store my Docker image.
+
+#### Code:
+
+```python
+# prepare_ecr.py
+import boto3
+import base64
+
+def create_or_check_repository(repository_name):
+    ecr_client = boto3.client('ecr')
+    try:
+        response = ecr_client.describe_repositories(repositoryNames=[repository_name])
+        repository_uri = response['repositories'][0]['repositoryUri']
+    except ecr_client.exceptions.RepositoryNotFoundException:
+        response = ecr_client.create_repository(repositoryName=repository_name)
+        repository_uri = response['repository']['repositoryUri']
+    return repository_uri
+
+def get_docker_login_cmd():
+    ecr_client = boto3.client('ecr')
+    token = ecr_client.get_authorization_token()
+    username, password = base64.b64decode(token['authorizationData'][0]['authorizationToken']).decode().split(':')
+    registry = token['authorizationData'][0]['proxyEndpoint']
+    return f"docker login -u {username} -p {password} {registry}"
+
+if __name__ == "__main__":
+    repository_name = '24745401_ecr_repo'
+    repository_uri = create_or_check_repository(repository_name)
+    print("ECR URI:", repository_uri)
+    print(get_docker_login_cmd())
+```
+
+#### Explanation:
+
+This script automates the ECR setup:
+- **`create_or_check_repository`**: This function is idempotent. It first checks if an ECR repository with the specified name already exists. If not, it creates one. It then returns the repository URI, which is needed for tagging and pushing the image.
+- **`get_docker_login_cmd`**: This function retrieves a temporary authorization token from ECR and constructs the `docker login` command needed to authenticate my local Docker client with the AWS registry.
+
+#### Result:
+
+Running the script outputted the ECR repository URI and the `docker login` command.
+
+![image_2025-10-06_06-54-08](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image_2025-10-06_06-54-08.png)
+
+### [2] Authenticate Docker to ECR
+
+I ran the outputted command in my terminal to authenticate.
+
+#### Result:
+
+The command returned a "Login Succeeded" message, confirming my Docker client could now push images to my ECR repository.
+
+
+
+## Push a local Docker image onto ECR
+
+### [1] Tag and Push the image
+
+With authentication complete, I tagged my local image with the ECR repository URI and pushed it to AWS.
+
+#### Command:
+
+```bash
+docker tag 24745401-lab8:latest 489389878001.dkr.ecr.eu-north-1.amazonaws.com/24745401_ecr_repo:latest
+docker push 489389878001.dkr.ecr.eu-north-1.amazonaws.com/24745401_ecr_repo:latest
+```
+
+#### Result:
+
+The Docker image was successfully uploaded to the ECR repository. I could see the image listed in the AWS ECR console.
+
+![image_2025-10-06_06-56-23](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image_2025-10-06_06-56-23.png) 
+
+![image-20251007093822381](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20251007093822381.png) 
+
+## Deploy your Docker image onto ECS
+
+### [1] Create ECS Cluster, Task Definition, and Service
+
+I created a single script, `deploy_ecs.py`, to handle the entire ECS deployment process, leveraging my reusable `ecs_manager.py` and `ec2_manager.py` modules.
+
+#### Code:
+
+```python
+# deploy_ecs.py
+import sys
+import os
+
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, project_root)
+
+from utils import config
+from utils import ecs_manager
+from utils import ec2_manager
+import boto3
+
+if __name__ == "__main__":
+    ecs_client = boto3.client('ecs')
+
+    ecr_uri = '489389878001.dkr.ecr.eu-north-1.amazonaws.com/24745401_ecr_repo:latest'
+
+    # Create Task Definition
+    task_definition_response = ecs_manager.create_ecs_task_definition(
+        ecs_client,
+        image_uri=ecr_uri,
+        account_id=config.ACCOUNT_ID,
+        task_role_name='SageMakerRole',
+        execution_role_name='ecsTaskExecutionRole',
+        student_id=config.STUDENT_NUMBER,
+        log_group='/ecs/lab8-service', 
+        log_region=config.REGION_NAME,
+        port=8888
+    )
+    task_definition_arn = task_definition_response['taskDefinition']['taskDefinitionArn']
+    print(f"Task Definition ARN: {task_definition_arn}")
+
+    # Create Cluster
+    cluster_name = f'{config.STUDENT_NUMBER}-cluster'
+    ecs_manager.create_ecs_cluster(ecs_client, cluster_name)
+    print(f"ECS Cluster: {cluster_name}")
+
+    # Get Subnets and Security Group
+    subnet_ids = ec2_manager.get_all_subnet_ids()
+    lab8_sg_rules = [
+            {'IpProtocol': 'tcp', 'FromPort': 22, 'ToPort': 22, 'IpRanges': [{'CidrIp': '0.0.0.0/0'}]},
+            {'IpProtocol': 'tcp', 'FromPort': 8888, 'ToPort': 8888, 'IpRanges': [{'CidrIp': '0.0.0.0/0'}]}
+        ]
+    sg_id = ec2_manager.create_security_group(
+        config.MY_SECURITY_GROUP_NAME, 
+        "Security Group for general use", 
+        lab8_sg_rules
+    )
+
+    # Create Service
+    service_name = f'{config.STUDENT_NUMBER}-service'
+    service_response = ecs_manager.create_ecs_service(
+        ecs_client, 
+        cluster_name, 
+        service_name, 
+        task_definition_arn, 
+        subnet_ids, 
+        [sg_id]
+    )
+    print(f'ECS Service created: {service_response["service"]["serviceArn"]}')
+
+    print(f'Waiting for service {service_name} to become stable...')
+    ecs_manager.wait_for_service_stability(ecs_client, cluster_name, service_name)
+    print(f'Service {service_name} is now stable.')
+```
+
+#### Explanation:
+
+This script orchestrates the entire deployment on ECS Fargate:
+1.  **Task Definition**: It first defines the task using `create_ecs_task_definition`. This is the blueprint for our application, specifying the Docker image (`ecr_uri`), required IAM roles (`SageMakerRole`, `ecsTaskExecutionRole`), and container settings like port mappings.
+2.  **Cluster Creation**: It ensures an ECS cluster named `{student_id}-cluster` exists using `create_ecs_cluster`.
+3.  **Networking**: It fetches all available subnet IDs and creates a new security group that allows inbound traffic on port 8888 (for Jupyter) and 22 (for SSH).
+4.  **Service Creation**: It creates an ECS service (`create_ecs_service`) which is responsible for running and maintaining the specified number of instances of the task definition. It's configured to use Fargate for serverless execution, assigns a public IP, and connects it to the correct subnets and security group.
+5.  **Wait for Stability**: Finally, it uses a waiter (`wait_for_service_stability`) to pause the script until the ECS service is fully deployed and stable.
+
+#### Result:
+
+The script ran successfully, creating all the necessary AWS resources and deploying the container.
+
+![image-20251007093941713](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20251007093941713.png) 
+
+### [2] Get Public IP and Access the Notebook
+
+After the service was stable, I used the AWS CLI to find the public IP address of the running Fargate task.
+
+#### Command:
+
+```bash
+aws ecs describe-tasks \
+    --cluster 24745401-cluster \
+    --tasks $(aws ecs list-tasks --cluster 24745401-cluster --service-name 24745401-service --query 'taskArns[0]' --output text) \
+    --query 'tasks[0].attachments[0].details[?name==`networkInterfaceId`].value' \
+    --output text | xargs -I {} aws ec2 describe-network-interfaces \
+    --network-interface-ids {} \
+    --query 'NetworkInterfaces[0].Association.PublicIp' \
+    --output text
+```
+
+#### Result:
+
+This command chain retrieved the public IP of my running container. I accessed the Jupyter notebook at `http://16.16.75.95:8888` and again entered our jupyter notebook deployed on the ECS.
+
+![image_2025-10-06_08-06-54](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image_2025-10-06_08-06-54.png)
+
+![image-20251007094416827](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20251007094416827.png)
+
+## Run Hyperparameter Tuning Jobs
+
+Inside the Jupyter notebook running on ECS, I performed the steps to train a model and find the best hyperparameters using Amazon SageMaker.
+
+### [1] Setup and Data Preparation
+
+First, I entered my AWS credentials to allow the notebook to interact with AWS services. The provided notebook expected an S3 bucket to be present, but since previous lab resources were deleted, I updated the notebook to include logic that programmatically creates the required S3 bucket if it doesn't already exist. This addition makes the notebook more robust and self-contained.
+
+#### Code:
+
+```python
+# Prepare a SageMaker session and ensure S3 bucket exists
+import sagemaker
+import numpy as np
+import pandas as pd
+from time import gmtime, strftime
+from botocore.exceptions import ClientError
+import logging
+
+smclient = boto3.Session().client("sagemaker")
+sagemaker_role = "arn:aws:iam::489389878001:role/SageMakerRole"
+region = os.environ['AWS_DEFAULT_REGION']
+student_id = "24745401"
+bucket = "24745401-lab8"
+prefix = f"sagemaker/{student_id}-hpo-xgboost-dm"
+
+s3_client = boto3.client("s3")
+
+def create_bucket(bucket_name, region=None):
+    try:
+        if region is None:
+            s3_client.create_bucket(Bucket=bucket_name)
+        else:
+            location = {'LocationConstraint': region}
+            s3_client.create_bucket(Bucket=bucket_name, 
+                             CreateBucketConfiguration=location)
+        print("Bucket created successfully")
+
+    except ClientError as e:
+        logging.error(e)
+        return False
+    return True
+
+# Check if bucket exists, if not create it
+try:
+    s3_client.head_bucket(Bucket=bucket)
+    print("Bucket %s already exists" % bucket)
+except ClientError as e:
+    if e.response['Error']['Code'] == '404':
+        print("Bucket %s does not exist. Creating it..." % bucket)
+        create_bucket(bucket, region)
+    else:
+        logging.error(e)
+        exit()
+
+# Create a folder (prefix) in the bucket
+try:
+    s3_client.put_object(Bucket=bucket, Key=f"{prefix}/")
+    print(f"Folder {prefix}/ created successfully")
+except Exception as e:
+    print(f"Error creating folder: {e}")
+```
+
+### [2] Data Download and Preprocessing
+
+I downloaded the bank marketing dataset, loaded it into a pandas DataFrame, and performed preprocessing to convert categorical features into a numerical format suitable for the model.
+
+#### Code:
+
+```python
+# Download and unzip data
+!wget -N https://archive.ics.uci.edu/ml/machine-learning-databases/00222/bank-additional.zip
+!unzip -o bank-additional.zip
+
+# Read into pandas
+data = pd.read_csv("./bank-additional/bank-additional-full.csv", sep=";")
+
+# Feature engineering and conversion to dummy variables
+data["no_previous_contact"] = np.where(data["pdays"] == 999, 1, 0)
+data["not_working"] = np.where(np.in1d(data["job"], ["student", "retired", "unemployed"]), 1, 0)
+model_data = pd.get_dummies(data)
+model_data = model_data.drop(
+    ["duration", "emp.var.rate", "cons.price.idx", "cons.conf.idx", "euribor3m", "nr.employed"],
+    axis=1,
+)
+```
+
+### [3] Data Splitting and Uploading to S3
+
+I split the data into training (70%), validation (20%), and test (10%) sets. Then, I formatted them as CSV files with the target variable in the first column and uploaded the training and validation sets to the S3 bucket.
+
+#### Code:
+
+```python
+# Split data
+train_data, validation_data, test_data = np.split(
+    model_data.sample(frac=1, random_state=1729),
+    [int(0.7 * len(model_data)), int(0.9 * len(model_data))],
+)
+
+# Save to CSV and upload to S3
+pd.concat([train_data["y_yes"], train_data.drop(["y_no", "y_yes"], axis=1)], axis=1).to_csv(
+    "train.csv", index=False, header=False
+)
+pd.concat(
+    [validation_data["y_yes"], validation_data.drop(["y_no", "y_yes"], axis=1)], axis=1
+).to_csv("validation.csv", index=False, header=False)
+
+boto3.Session().resource("s3").Bucket(bucket).Object(
+    os.path.join(prefix, "train/train.csv")
+).upload_file("train.csv")
+boto3.Session().resource("s3").Bucket(bucket).Object(
+    os.path.join(prefix, "validation/validation.csv")
+).upload_file("validation.csv")
+```
+
+### [4] Configure and Launch Hyperparameter Tuning Job
+
+I defined the configuration for the SageMaker hyperparameter tuning job. This included defining the ranges for the hyperparameters I wanted to tune (`eta`, `min_child_weight`, `alpha`, `max_depth`), the objective metric (`validation:auc`), and the resource limits.
+
+#### Code:
+
+```python
+# Define tuning job configuration
+tuning_job_name = f"{student_id}-xgboost-tuningjob-01"
+tuning_job_config = {
+    "ParameterRanges": {
+        "ContinuousParameterRanges": [
+            {"MaxValue": "1", "MinValue": "0", "Name": "eta"},
+            {"MaxValue": "10", "MinValue": "1", "Name": "min_child_weight"},
+            {"MaxValue": "2", "MinValue": "0", "Name": "alpha"},
+        ],
+        "IntegerParameterRanges": [
+            {"MaxValue": "10", "MinValue": "1", "Name": "max_depth"}
+        ],
+    },
+    "ResourceLimits": {"MaxNumberOfTrainingJobs": 2, "MaxParallelTrainingJobs": 2},
+    "Strategy": "Bayesian",
+    "HyperParameterTuningJobObjective": {"MetricName": "validation:auc", "Type": "Maximize"},
+}
+
+# Define the training job structure
+from sagemaker.image_uris import retrieve
+training_image = retrieve(framework="xgboost", region=region, version="latest")
+# ... training_job_definition ...
+
+# Launch the tuning job
+smclient.create_hyper_parameter_tuning_job(
+    HyperParameterTuningJobName=tuning_job_name,
+    HyperParameterTuningJobConfig=tuning_job_config,
+    TrainingJobDefinition=training_job_definition,
+)
+```
+
+#### Result:
+
+The hyperparameter tuning job was successfully launched. I monitored its progress in the AWS SageMaker console. After a few minutes, the job completed, and SageMaker identified the combination of hyperparameters that resulted in the best model performance based on the AUC metric.
+
+![image_2025-10-06_08-42-13](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image_2025-10-06_08-42-13.png) 
+
+I also confirmed all the training result was successfully uploaded to my newly-created S3 bucket.
+
+![image_2025-10-06_08-44-29](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image_2025-10-06_08-44-29.png)
 
 # Lab 9
 
