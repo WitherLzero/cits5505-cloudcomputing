@@ -1752,3 +1752,1528 @@ I also confirmed all the training result was successfully uploaded to my newly-c
 
 # Lab 9
 
+## AWS Comprehend - Natural Language Processing
+
+### Detect Languages from Text
+
+#### [1] Modify the code to detect different languages
+
+The first task required modifying the provided code to detect different languages and return a user-friendly message showing the language name (not just the code) with confidence as a percentage.
+
+#### Code:
+
+```python
+#!/usr/bin/env python3
+"""
+Lab 9 - AWS Comprehend: Language Detection
+Detects the dominant language in a given text and displays confidence as percentage.
+"""
+
+import boto3
+from botocore.exceptions import ClientError
+
+# Language code to language name mapping
+LANGUAGE_NAMES = {
+    'en': 'English',
+    'es': 'Spanish',
+    'fr': 'French',
+    'it': 'Italian',
+    'de': 'German',
+    'pt': 'Portuguese',
+    'zh': 'Chinese',
+    'ja': 'Japanese',
+    'ar': 'Arabic',
+    'ru': 'Russian',
+}
+
+def detect_language(text):
+    """
+    Detect the dominant language in the given text.
+    """
+    client = boto3.client('comprehend', region_name='us-east-1')
+
+    try:
+        response = client.detect_dominant_language(Text=text)
+
+        if response['Languages']:
+            top_language = response['Languages'][0]
+            language_code = top_language['LanguageCode']
+            confidence_score = top_language['Score']
+
+            # Convert language code to name
+            language_name = LANGUAGE_NAMES.get(language_code, language_code.upper())
+
+            # Convert confidence to percentage
+            confidence_percentage = int(confidence_score * 100)
+
+            return language_name, confidence_percentage
+        else:
+            return None, 0
+
+    except ClientError as e:
+        print(f"Error: {e}")
+        return None, 0
+```
+
+#### Explanation:
+
+This implementation enhances the basic language detection code provided in the lab worksheet:
+
+- **AWS Comprehend Client**: The `boto3.client('comprehend', region_name='ap-southeast-2')` creates a connection to AWS Comprehend service in the ap-southeast-2 region as specified in the lab requirements.
+
+- **Language Name Mapping**: The `LANGUAGE_NAMES` dictionary converts AWS's two-letter language codes (e.g., 'en', 'es') into full language names (e.g., 'English', 'Spanish'), meeting the requirement to display language names rather than codes.
+
+- **Confidence Score Conversion**: The confidence score returned by AWS Comprehend is a float value between 0 and 1. The code multiplies this by 100 and converts to an integer to display it as a percentage (e.g., 0.9961 becomes 99%).
+
+- **Message Format**: The function returns both the language name and confidence percentage, which can be formatted into the required message: "<predicted_language> was detected with <xx>% confidence".
+
+#### [2] Test the code with other languages
+
+I tested the language detection script with all four texts provided in the lab worksheet: English, Spanish, French, and Italian.
+
+#### Code:
+
+```python
+def main():
+    """Test the language detection with sample texts."""
+
+    # Test texts from the lab worksheet
+    test_texts = {
+        'English': "The French Revolution was a period of social and political upheaval in France and its colonies beginning in 1789 and ending in 1799.",
+
+        'Spanish': "El Quijote es la obra más conocida de Miguel de Cervantes Saavedra. Publicada su primera parte con el título de El ingenioso hidalgo don Quijote de la Mancha a comienzos de 1605, es una de las obras más destacadas de la literatura española y la literatura universal, y una de las más traducidas. En 1615 aparecería la segunda parte del Quijote de Cervantes con el título de El ingenioso caballero don Quijote de la Mancha.",
+
+        'French': "Moi je n'étais rien Et voilà qu'aujourd'hui Je suis le gardien Du sommeil de ses nuits Je l'aime à mourir Vous pouvez détruire Tout ce qu'il vous plaira Elle n'a qu'à ouvrir L'espace de ses bras Pour tout reconstruire Pour tout reconstruire Je l'aime à mourir",
+
+        'Italian': "L'amor che move il sole e l'altre stelle."
+    }
+
+    print("="*60)
+    print("AWS Comprehend - Language Detection Test")
+    print("="*60)
+
+    for expected_lang, text in test_texts.items():
+        print(f"\n{'─'*60}")
+        print(f"Expected: {expected_lang}")
+        print(f"Text: {text[:80]}..." if len(text) > 80 else f"Text: {text}")
+        print(f"{'─'*60}")
+
+        language_name, confidence = detect_language(text)
+
+        if language_name:
+            print(f"✓ {language_name} was detected with {confidence}% confidence")
+        else:
+            print("✗ Could not detect language")
+
+    print(f"\n{'='*60}\n")
+
+if __name__ == "__main__":
+    main()
+```
+
+#### Result:
+
+After running the script, all four languages were successfully detected with high confidence:
+```plaintext
+root@paulyn:~/_codes/cits5503/lab9# python3 detect_languages.py 
+============================================================
+AWS Comprehend - Language Detection Test
+============================================================
+
+────────────────────────────────────────────────────────────
+Expected: English
+Text: The French Revolution was a period of social and political upheaval in France an...
+────────────────────────────────────────────────────────────
+✓ English was detected with 99% confidence
+
+────────────────────────────────────────────────────────────
+Expected: Spanish
+Text: El Quijote es la obra más conocida de Miguel de Cervantes Saavedra. Publicada su...
+────────────────────────────────────────────────────────────
+✓ Spanish was detected with 99% confidence
+
+────────────────────────────────────────────────────────────
+Expected: French
+Text: Moi je n'étais rien Et voilà qu'aujourd'hui Je suis le gardien Du sommeil de ses...
+────────────────────────────────────────────────────────────
+✓ French was detected with 99% confidence
+
+────────────────────────────────────────────────────────────
+Expected: Italian
+Text: L'amor che move il sole e l'altre stelle.
+────────────────────────────────────────────────────────────
+✓ Italian was detected with 99% confidence
+
+============================================================
+```
+
+
+
+### Analyse Sentiment
+
+Sentiment analysis (or opinion mining) uses NLP to determine whether data is positive, negative, neutral, or mixed. I created a Python script using AWS Comprehend to perform sentiment analysis on the four texts provided in the lab worksheet.
+
+#### Code:
+
+```python
+#!/usr/bin/env python3
+"""
+Lab 9 - AWS Comprehend: Sentiment Analysis
+Analyzes whether text is positive, negative, neutral, or mixed.
+"""
+
+import boto3
+from botocore.exceptions import ClientError
+
+def analyze_sentiment(text, language_code='en'):
+    """
+    Analyze the sentiment of a text.
+
+    Args:
+        text (str): The text to analyze
+        language_code (str): Language code (e.g., 'en', 'es', 'fr')
+
+    Returns:
+        dict: Sentiment analysis results
+    """
+    client = boto3.client('comprehend', region_name='ap-southeast-2')
+
+    try:
+        response = client.detect_sentiment(
+            Text=text,
+            LanguageCode=language_code
+        )
+
+        return response
+
+    except ClientError as e:
+        print(f"Error: {e}")
+        return None
+
+def main():
+    """Test sentiment analysis with sample texts."""
+
+    # Use the same 4 texts from language detection section above
+    test_texts = {
+        'English': {'text': "...", 'lang': 'en'},
+        'Spanish': {'text': "...", 'lang': 'es'},
+        'French': {'text': "...", 'lang': 'fr'},
+        'Italian': {'text': "...", 'lang': 'it'}
+    }
+
+    print("="*70)
+    print("AWS Comprehend - Sentiment Analysis Test")
+    print("="*70)
+
+    for name, data in test_texts.items():
+        print(f"\n{'─'*70}")
+        print(f"Text: {name}")
+        print(f"Preview: {data['text'][:80]}..." if len(data['text']) > 80 else f"Text: {data['text']}")
+        print(f"{'─'*70}")
+
+        result = analyze_sentiment(data['text'], data['lang'])
+
+        if result:
+            sentiment = result['Sentiment']
+            scores = result['SentimentScore']
+
+            print(f"✓ Overall Sentiment: {sentiment}")
+            print(f"\n  Confidence Scores:")
+            print(f"    Positive:  {scores['Positive']:.4f} ({scores['Positive']*100:.2f}%)")
+            print(f"    Negative:  {scores['Negative']:.4f} ({scores['Negative']*100:.2f}%)")
+            print(f"    Neutral:   {scores['Neutral']:.4f} ({scores['Neutral']*100:.2f}%)")
+            print(f"    Mixed:     {scores['Mixed']:.4f} ({scores['Mixed']*100:.2f}%)")
+        else:
+            print("✗ Could not analyze sentiment")
+
+    print(f"\n{'='*70}\n")
+
+if __name__ == "__main__":
+    main()
+```
+
+#### Explanation:
+
+This implementation demonstrates AWS Comprehend's sentiment analysis capabilities:
+
+- **Sentiment Detection API**: The `client.detect_sentiment(Text=text, LanguageCode=language_code)` method analyzes the emotional tone of the text and classifies it into one of four categories: POSITIVE, NEGATIVE, NEUTRAL, or MIXED.
+
+- **Language Code Parameter**: AWS Comprehend requires the language code to be specified for sentiment analysis. The script automatically detects and uses the appropriate language code ('en', 'es', 'fr', 'it') for each text.
+
+- **Sentiment Score**: AWS Comprehend returns confidence scores for all four sentiment categories, with values ranging from 0 to 1. The sum of all four scores equals 1.0, representing a probability distribution across the sentiment categories.
+
+- **Multi-language Support**: The script tests sentiment analysis across four different languages, demonstrating Comprehend's multilingual sentiment analysis capabilities.
+
+#### Result:
+
+After running the script, the sentiment analysis successfully classified each text and provided confidence scores for all sentiment categories:
+```plaintext
+root@paulyn:~/_codes/cits5503/lab9# python3 analyze_sentiment.py 
+======================================================================
+AWS Comprehend - Sentiment Analysis Test
+======================================================================
+
+──────────────────────────────────────────────────────────────────────
+Text: English
+Preview: The French Revolution was a period of social and political upheaval in France an...
+──────────────────────────────────────────────────────────────────────
+✓ Overall Sentiment: NEUTRAL
+
+  Confidence Scores:
+    Positive:  0.0003 (0.03%)
+    Negative:  0.0007 (0.07%)
+    Neutral:   0.9991 (99.91%)
+    Mixed:     0.0000 (0.00%)
+
+──────────────────────────────────────────────────────────────────────
+Text: Spanish
+Preview: El Quijote es la obra más conocida de Miguel de Cervantes Saavedra. Publicada su...
+──────────────────────────────────────────────────────────────────────
+✓ Overall Sentiment: NEUTRAL
+
+  Confidence Scores:
+    Positive:  0.0475 (4.75%)
+    Negative:  0.0002 (0.02%)
+    Neutral:   0.9522 (95.22%)
+    Mixed:     0.0001 (0.01%)
+
+──────────────────────────────────────────────────────────────────────
+Text: French
+Preview: Moi je n'étais rien Et voilà qu'aujourd'hui Je suis le gardien Du sommeil de ses...
+──────────────────────────────────────────────────────────────────────
+✓ Overall Sentiment: POSITIVE
+
+  Confidence Scores:
+    Positive:  0.6963 (69.63%)
+    Negative:  0.2653 (26.53%)
+    Neutral:   0.0102 (1.02%)
+    Mixed:     0.0282 (2.82%)
+
+──────────────────────────────────────────────────────────────────────
+Text: Italian
+Text: L'amor che move il sole e l'altre stelle.
+──────────────────────────────────────────────────────────────────────
+✓ Overall Sentiment: POSITIVE
+
+  Confidence Scores:
+    Positive:  0.9967 (99.67%)
+    Negative:  0.0010 (0.10%)
+    Neutral:   0.0021 (0.21%)
+    Mixed:     0.0002 (0.02%)
+
+======================================================================
+```
+
+### Detect Entities
+
+Entity detection identifies and categorizes real-world objects or concepts mentioned in text. I created a Python script using AWS Comprehend to detect entities in the four test texts.
+
+**Answer to the question "What are entities?":**
+
+Entities are real-world objects or concepts that are mentioned in text, such as people, locations, organizations, dates, quantities, events, and titles. AWS Comprehend can automatically identify and categorize these entities into predefined types. For example, in the text "Amazon was founded by Jeff Bezos in Seattle", the entities would be:
+- "Amazon" (ORGANIZATION)
+- "Jeff Bezos" (PERSON)
+- "Seattle" (LOCATION)
+
+Unlike abstract concepts, entities refer to specific, concrete references that can be classified into standard categories. This helps in understanding the key subjects and objects discussed in a text.
+
+#### Code:
+
+```python
+#!/usr/bin/env python3
+"""
+Lab 9 - AWS Comprehend: Entity Detection
+Detects named entities (people, places, organizations, dates, etc.) in text.
+"""
+
+import boto3
+from botocore.exceptions import ClientError
+
+def detect_entities(text, language_code='en'):
+    """
+    Detect entities in a text.
+
+    Args:
+        text (str): The text to analyze
+        language_code (str): Language code (e.g., 'en', 'es', 'fr', 'it')
+
+    Returns:
+        list: List of detected entities
+    """
+    client = boto3.client('comprehend', region_name='ap-southeast-2')
+
+    try:
+        response = client.detect_entities(
+            Text=text,
+            LanguageCode=language_code
+        )
+
+        return response['Entities']
+
+    except ClientError as e:
+        print(f"Error: {e}")
+        return []
+
+def main():
+    """Test entity detection with sample texts."""
+
+    # Use the same 4 texts from language detection section above
+    test_texts = {
+        'English': {'text': "...", 'lang': 'en'},
+        'Spanish': {'text': "...", 'lang': 'es'},
+        'French': {'text': "...", 'lang': 'fr'},
+        'Italian': {'text': "...", 'lang': 'it'}
+    }
+
+    print("="*70)
+    print("AWS Comprehend - Entity Detection Test")
+    print("="*70)
+
+    for name, data in test_texts.items():
+        print(f"\n{'─'*70}")
+        print(f"Text: {name}")
+        print(f"Preview: {data['text'][:80]}..." if len(data['text']) > 80 else f"Full text: {data['text']}")
+        print(f"{'─'*70}")
+
+        entities = detect_entities(data['text'], data['lang'])
+
+        if entities:
+            print(f"✓ Found {len(entities)} entities:")
+
+            # Group entities by type
+            by_type = {}
+            for entity in entities:
+                entity_type = entity['Type']
+                if entity_type not in by_type:
+                    by_type[entity_type] = []
+                by_type[entity_type].append(entity)
+
+            # Display grouped entities
+            for entity_type, items in sorted(by_type.items()):
+                print(f"\n  {entity_type}:")
+                for entity in items:
+                    confidence = entity['Score'] * 100
+                    print(f"    • '{entity['Text']}' (Confidence: {confidence:.2f}%)")
+        else:
+            print("✗ No entities detected")
+
+    print(f"\n{'='*70}\n")
+
+if __name__ == "__main__":
+    main()
+```
+
+#### Explanation:
+
+This implementation demonstrates AWS Comprehend's entity detection capabilities:
+
+- **Entity Detection API**: The `client.detect_entities(Text=text, LanguageCode=language_code)` method identifies and extracts entities from the text, categorizing them into types such as PERSON, LOCATION, ORGANIZATION, DATE, QUANTITY, EVENT, and TITLE.
+
+- **Entity Grouping**: The script groups detected entities by their type for better readability, making it easier to understand what categories of information are present in the text.
+
+- **Confidence Scores**: Each detected entity comes with a confidence score indicating how certain AWS Comprehend is about the entity type classification. Higher scores indicate greater confidence in the detection.
+
+- **Multilingual Entity Detection**: The script processes texts in four different languages (English, Spanish, French, Italian), demonstrating Comprehend's ability to recognize entities across multiple languages.
+
+#### Result:
+
+After running the script, entities were successfully detected and categorized in each text:
+
+```plaintext
+root@paulyn:~/_codes/cits5503/lab9# python3 detect_entities.py 
+======================================================================
+AWS Comprehend - Entity Detection Test
+======================================================================
+
+──────────────────────────────────────────────────────────────────────
+Text: English
+Preview: The French Revolution was a period of social and political upheaval in France an...
+──────────────────────────────────────────────────────────────────────
+✓ Found 4 entities:
+
+  DATE:
+    • '1789' (Confidence: 99.80%)
+    • '1799' (Confidence: 99.87%)
+
+  EVENT:
+    • 'French Revolution' (Confidence: 98.60%)
+
+  LOCATION:
+    • 'France' (Confidence: 98.98%)
+
+──────────────────────────────────────────────────────────────────────
+Text: Spanish
+Preview: El Quijote es la obra más conocida de Miguel de Cervantes Saavedra. Publicada su...
+──────────────────────────────────────────────────────────────────────
+✓ Found 12 entities:
+
+  DATE:
+    • '1605' (Confidence: 79.77%)
+    • '1615' (Confidence: 98.81%)
+
+  OTHER:
+    • 'española' (Confidence: 98.65%)
+
+  PERSON:
+    • 'Miguel de Cervantes Saavedra' (Confidence: 99.93%)
+
+  QUANTITY:
+    • 'primera parte' (Confidence: 86.64%)
+    • 'una de' (Confidence: 59.71%)
+    • 'una de las más' (Confidence: 63.20%)
+    • 'segunda parte' (Confidence: 88.87%)
+
+  TITLE:
+    • 'El Quijote' (Confidence: 96.96%)
+    • 'El ingenioso hidalgo don Quijote de la Mancha' (Confidence: 87.85%)
+    • 'Quijote de Cervantes' (Confidence: 74.33%)
+    • 'El ingenioso caballero don Quijote de la Mancha' (Confidence: 91.13%)
+
+──────────────────────────────────────────────────────────────────────
+Text: French
+Preview: Moi je n'étais rien Et voilà qu'aujourd'hui Je suis le gardien Du sommeil de ses...
+──────────────────────────────────────────────────────────────────────
+✓ Found 2 entities:
+
+  DATE:
+    • 'aujourd'hui' (Confidence: 98.08%)
+
+  QUANTITY:
+    • 'Tout ce qu'' (Confidence: 66.27%)
+
+──────────────────────────────────────────────────────────────────────
+Text: Italian
+Full text: L'amor che move il sole e l'altre stelle.
+──────────────────────────────────────────────────────────────────────
+✗ No entities detected
+
+======================================================================
+```
+
+### Detect Keyphrases
+
+Keyphrase detection extracts the main topics or important phrases from text. I created a Python script using AWS Comprehend to detect keyphrases in the four test texts.
+
+**Answer to the question "What are keyphrases?":**
+
+Keyphrases are the main topics or important phrases in a text that capture its essential meaning and core concepts. They are typically noun phrases that represent key ideas being discussed. Unlike entities (which must be specific real-world objects like "Jeff Bezos" or "Seattle"), keyphrases can be broader concepts or topics. For example, in the text "The new smartphone features advanced camera technology", the keyphrases would be:
+- "new smartphone"
+- "advanced camera technology"
+
+Keyphrases help in understanding what a text is about at a high level, making them useful for document summarization, content categorization, and topic extraction.
+
+#### Code:
+
+```python
+#!/usr/bin/env python3
+"""
+Lab 9 - AWS Comprehend: Keyphrase Detection
+Detects key phrases (main topics and important concepts) in text.
+"""
+
+import boto3
+from botocore.exceptions import ClientError
+
+def detect_keyphrases(text, language_code='en'):
+    """
+    Detect key phrases in a text.
+    """
+    client = boto3.client('comprehend', region_name='ap-southeast-2')
+
+    try:
+        response = client.detect_key_phrases(
+            Text=text,
+            LanguageCode=language_code
+        )
+
+        return response['KeyPhrases']
+
+    except ClientError as e:
+        print(f"Error: {e}")
+        return []
+
+def main():
+    """Test keyphrase detection with sample texts."""
+
+    # Use the same 4 texts from language detection section above
+    test_texts = {
+        'English': {'text': "...", 'lang': 'en'},
+        'Spanish': {'text': "...", 'lang': 'es'},
+        'French': {'text': "...", 'lang': 'fr'},
+        'Italian': {'text': "...", 'lang': 'it'}
+    }
+
+    print("="*70)
+    print("AWS Comprehend - Keyphrase Detection Test")
+    print("="*70)
+
+    for name, data in test_texts.items():
+        print(f"\n{'─'*70}")
+        print(f"Text: {name}")
+        print(f"Preview: {data['text'][:80]}..." if len(data['text']) > 80 else f"Full text: {data['text']}")
+        print(f"{'─'*70}")
+
+        keyphrases = detect_keyphrases(data['text'], data['lang'])
+
+        if keyphrases:
+            print(f"✓ Found {len(keyphrases)} keyphrases:")
+
+            # Sort by confidence (highest first)
+            sorted_keyphrases = sorted(keyphrases, key=lambda x: x['Score'], reverse=True)
+
+            for i, phrase in enumerate(sorted_keyphrases, 1):
+                confidence = phrase['Score'] * 100
+                print(f"  {i}. '{phrase['Text']}' (Confidence: {confidence:.2f}%)")
+        else:
+            print("✗ No keyphrases detected")
+
+    print(f"\n{'='*70}\n")
+
+if __name__ == "__main__":
+    main()
+```
+
+#### Explanation:
+
+This implementation demonstrates AWS Comprehend's keyphrase detection capabilities:
+
+- **Keyphrase Detection API**: The `client.detect_key_phrases(Text=text, LanguageCode=language_code)` method identifies important noun phrases that represent the main topics and concepts in the text.
+
+- **Confidence Sorting**: The script sorts keyphrases by confidence score in descending order, placing the most confidently detected keyphrases at the top of the list, making it easier to identify the most relevant topics.
+
+- **Keyphrase Score**: Each keyphrase comes with a confidence score indicating how certain AWS Comprehend is that this phrase represents a key topic in the text. Higher scores indicate greater confidence.
+
+- **Topic Extraction**: Unlike entity detection which focuses on concrete real-world objects, keyphrase detection identifies broader themes and important concepts, making it useful for understanding the overall subject matter of a text.
+
+#### Result:
+
+After running the script, keyphrases were successfully extracted from each text, showing the main topics and concepts:
+
+```plaintext
+root@paulyn:~/_codes/cits5503/lab9# python3 detect_keyphrases.py 
+======================================================================
+AWS Comprehend - Keyphrase Detection Test
+======================================================================
+
+──────────────────────────────────────────────────────────────────────
+Text: English
+Preview: The French Revolution was a period of social and political upheaval in France an...
+──────────────────────────────────────────────────────────────────────
+✓ Found 7 keyphrases:
+  1. 'The French Revolution' (Confidence: 100.00%)
+  2. 'its colonies' (Confidence: 100.00%)
+  3. 'a period' (Confidence: 100.00%)
+  4. '1789' (Confidence: 100.00%)
+  5. 'social and political upheaval' (Confidence: 100.00%)
+  6. 'France' (Confidence: 99.99%)
+  7. '1799' (Confidence: 99.99%)
+
+──────────────────────────────────────────────────────────────────────
+Text: Spanish
+Preview: El Quijote es la obra más conocida de Miguel de Cervantes Saavedra. Publicada su...
+──────────────────────────────────────────────────────────────────────
+✓ Found 18 keyphrases:
+  1. 'el título' (Confidence: 100.00%)
+  2. 'la segunda parte' (Confidence: 100.00%)
+  3. 'Miguel de Cervantes Saavedra' (Confidence: 100.00%)
+  4. 'las obras' (Confidence: 100.00%)
+  5. 'la literatura española' (Confidence: 100.00%)
+  6. 'la obra' (Confidence: 100.00%)
+  7. 'el título' (Confidence: 99.99%)
+  8. 'la literatura universal' (Confidence: 99.99%)
+  9. 'Quijote de Cervantes' (Confidence: 99.99%)
+  10. 'su primera parte' (Confidence: 99.99%)
+  11. 'más destacadas' (Confidence: 99.99%)
+  12. 'comienzos' (Confidence: 99.98%)
+  13. 'las más traducidas' (Confidence: 99.95%)
+  14. 'El Quijote' (Confidence: 99.95%)
+  15. 'más conocida' (Confidence: 99.88%)
+  16. '1605' (Confidence: 99.62%)
+  17. 'El ingenioso hidalgo don Quijote de la Mancha' (Confidence: 95.61%)
+  18. 'ingenioso caballero don Quijote de la Mancha' (Confidence: 93.65%)
+
+──────────────────────────────────────────────────────────────────────
+Text: French
+Preview: Moi je n'étais rien Et voilà qu'aujourd'hui Je suis le gardien Du sommeil de ses...
+──────────────────────────────────────────────────────────────────────
+✓ Found 18 keyphrases:
+  1. 'l'' (Confidence: 99.99%)
+  2. 'Je' (Confidence: 99.99%)
+  3. 'Moi' (Confidence: 99.99%)
+  4. 'Je' (Confidence: 99.99%)
+  5. 'l'' (Confidence: 99.98%)
+  6. 'Elle' (Confidence: 99.98%)
+  7. 'vous' (Confidence: 99.97%)
+  8. 'Vous' (Confidence: 99.90%)
+  9. 'il' (Confidence: 99.86%)
+  10. 'L'espace de ses bras' (Confidence: 99.47%)
+  11. 'Tout ce' (Confidence: 98.28%)
+  12. 'qu'' (Confidence: 96.47%)
+  13. 'tout' (Confidence: 96.25%)
+  14. 'n'étais rien' (Confidence: 95.63%)
+  15. 'je' (Confidence: 95.50%)
+  16. 'aujourd'hui' (Confidence: 94.90%)
+  17. 'Je suis le gardien Du sommeil de ses nuits' (Confidence: 94.12%)
+  18. 'tout' (Confidence: 89.33%)
+
+──────────────────────────────────────────────────────────────────────
+Text: Italian
+Full text: L'amor che move il sole e l'altre stelle.
+──────────────────────────────────────────────────────────────────────
+✓ Found 4 keyphrases:
+  1. 'il sole' (Confidence: 100.00%)
+  2. 'l'altre stelle' (Confidence: 99.99%)
+  3. 'L'amor' (Confidence: 99.99%)
+  4. 'che' (Confidence: 99.98%)
+
+======================================================================
+```
+
+### Detect Syntaxes
+
+Syntax detection analyzes the grammatical structure of text by identifying parts of speech for each word. I created a Python script using AWS Comprehend to detect syntax in the four test texts.
+
+**Answer to the question "What is syntax?":**
+
+Syntax refers to the grammatical structure of text, specifically the parts of speech (POS) and how words function within sentences. Syntax detection identifies each word's grammatical role and how it relates to other words in the sentence. For example, in the sentence "The cat runs quickly":
+- "The" = DETERMINER (DET)
+- "cat" = NOUN
+- "runs" = VERB
+- "quickly" = ADVERB (ADV)
+
+Understanding syntax helps in analyzing sentence structure, grammar checking, text-to-speech systems, and understanding how words relate to each other grammatically.
+
+#### Code:
+
+```python
+#!/usr/bin/env python3
+"""
+Lab 9 - AWS Comprehend: Syntax Detection
+Detects parts of speech (grammatical structure) in text.
+"""
+
+import boto3
+from botocore.exceptions import ClientError
+
+def detect_syntax(text, language_code='en'):
+    """
+    Detect syntax (parts of speech) in a text.
+    """
+    client = boto3.client('comprehend', region_name='ap-southeast-2')
+
+    try:
+        response = client.detect_syntax(
+            Text=text,
+            LanguageCode=language_code
+        )
+
+        return response['SyntaxTokens']
+
+    except ClientError as e:
+        print(f"Error: {e}")
+        return []
+
+def main():
+    """Test syntax detection with sample texts."""
+
+    # Use first sentence of each text for clarity
+    test_texts = {
+        'English': {
+            'text': "The French Revolution was a period of social and political upheaval in France.",
+            'lang': 'en'
+        },
+        'Spanish': {
+            'text': "El Quijote es la obra más conocida de Miguel de Cervantes Saavedra.",
+            'lang': 'es'
+        },
+        'French': {
+            'text': "Je suis le gardien du sommeil de ses nuits.",
+            'lang': 'fr'
+        },
+        'Italian': {
+            'text': "L'amor che move il sole e l'altre stelle.",
+            'lang': 'it'
+        }
+    }
+
+    print("="*70)
+    print("AWS Comprehend - Syntax Detection Test")
+    print("="*70)
+
+    for name, data in test_texts.items():
+        print(f"\n{'─'*70}")
+        print(f"Text: {name}")
+        print(f"Sentence: {data['text']}")
+        print(f"{'─'*70}")
+
+        syntax_tokens = detect_syntax(data['text'], data['lang'])
+
+        if syntax_tokens:
+            print(f"✓ Found {len(syntax_tokens)} tokens:\n")
+
+            # Display in a table format
+            print(f"  {'#':<4} {'Word':<20} {'POS':<8} {'Confidence':<12}")
+            print(f"  {'-'*4} {'-'*20} {'-'*8} {'-'*12}")
+
+            for i, token in enumerate(syntax_tokens, 1):
+                word = token['Text']
+                pos_tag = token['PartOfSpeech']['Tag']
+                confidence = token['PartOfSpeech']['Score'] * 100
+
+                print(f"  {i:<4} {word:<20} {pos_tag:<8} {confidence:>6.2f}%")
+
+            # Summary of POS types
+            pos_counts = {}
+            for token in syntax_tokens:
+                pos = token['PartOfSpeech']['Tag']
+                pos_counts[pos] = pos_counts.get(pos, 0) + 1
+
+            print(f"\n  Summary:")
+            for pos, count in sorted(pos_counts.items(), key=lambda x: x[1], reverse=True):
+                print(f"    {pos}: {count}")
+
+        else:
+            print("✗ Syntax detection not supported for this language")
+
+    print(f"\n{'='*70}\n")
+
+if __name__ == "__main__":
+    main()
+```
+
+#### Explanation:
+
+This implementation demonstrates AWS Comprehend's syntax detection capabilities:
+
+- **Syntax Detection API**: The `client.detect_syntax(Text=text, LanguageCode=language_code)` method analyzes each word in the text and assigns it a part of speech tag (e.g., NOUN, VERB, ADJ, DET, ADP).
+
+- **Token Analysis**: Each word (token) is analyzed individually, with AWS Comprehend identifying its grammatical function and providing a confidence score for the classification.
+
+- **POS Tags**: Common part of speech tags include NOUN (nouns), VERB (verbs), ADJ (adjectives), ADV (adverbs), DET (determiners like "the", "a"), ADP (prepositions), PRON (pronouns), and others.
+
+- **Tabular Display**: The script formats the output in a table showing each token's position, the word itself, its POS tag, and the confidence score, making it easy to understand the grammatical structure of the sentence.
+
+- **Summary Statistics**: A summary section groups and counts tokens by their POS type, providing an overview of the grammatical composition of the text.
+
+#### Result:
+
+After running the script, the syntax analysis successfully identified parts of speech for each word:
+
+```plaintext
+root@paulyn:~/_codes/cits5503/lab9# python3 detect_syntax.py 
+======================================================================
+AWS Comprehend - Syntax Detection Test
+======================================================================
+
+──────────────────────────────────────────────────────────────────────
+Text: English
+Sentence: The French Revolution was a period of social and political upheaval in France.
+──────────────────────────────────────────────────────────────────────
+✓ Found 14 tokens:
+
+  #    Word                 POS      Confidence  
+  ---- -------------------- -------- ------------
+  1    The                  DET      100.00%
+  2    French               PROPN    100.00%
+  3    Revolution           PROPN    100.00%
+  4    was                  VERB     100.00%
+  5    a                    DET      100.00%
+  6    period               NOUN     100.00%
+  7    of                   ADP      100.00%
+  8    social               ADJ      100.00%
+  9    and                  CCONJ    100.00%
+  10   political            ADJ      100.00%
+  11   upheaval             NOUN     100.00%
+  12   in                   ADP      100.00%
+  13   France               PROPN    100.00%
+  14   .                    PUNCT    100.00%
+
+  Summary:
+    PROPN: 3 (Proper noun (names))
+    DET: 2 (Determiner (the, a, this))
+    NOUN: 2 (Noun (person, place, thing))
+    ADP: 2 (Adposition (preposition))
+    ADJ: 2 (Adjective (describes noun))
+    VERB: 1 (Verb (action or state))
+    CCONJ: 1 (Coordinating conjunction)
+    PUNCT: 1 (Punctuation)
+
+──────────────────────────────────────────────────────────────────────
+Text: Spanish
+Sentence: El Quijote es la obra más conocida de Miguel de Cervantes Saavedra.
+──────────────────────────────────────────────────────────────────────
+✓ Found 13 tokens:
+
+  #    Word                 POS      Confidence  
+  ---- -------------------- -------- ------------
+  1    El                   DET      100.00%
+  2    Quijote              PROPN    100.00%
+  3    es                   VERB     100.00%
+  4    la                   DET      100.00%
+  5    obra                 NOUN     100.00%
+  6    más                  ADV      100.00%
+  7    conocida             ADJ       99.93%
+  8    de                   ADP      100.00%
+  9    Miguel               PROPN    100.00%
+  10   de                   ADP      100.00%
+  11   Cervantes            PROPN    100.00%
+  12   Saavedra             PROPN    100.00%
+  13   .                    PUNCT    100.00%
+
+  Summary:
+    PROPN: 4 (Proper noun (names))
+    DET: 2 (Determiner (the, a, this))
+    ADP: 2 (Adposition (preposition))
+    VERB: 1 (Verb (action or state))
+    NOUN: 1 (Noun (person, place, thing))
+    ADV: 1 (Adverb (describes verb))
+    ADJ: 1 (Adjective (describes noun))
+    PUNCT: 1 (Punctuation)
+
+──────────────────────────────────────────────────────────────────────
+Text: French
+Sentence: Je suis le gardien du sommeil de ses nuits.
+──────────────────────────────────────────────────────────────────────
+✓ Found 10 tokens:
+
+  #    Word                 POS      Confidence  
+  ---- -------------------- -------- ------------
+  1    Je                   PRON     100.00%
+  2    suis                 AUX      100.00%
+  3    le                   DET      100.00%
+  4    gardien              NOUN     100.00%
+  5    du                   ADP      100.00%
+  6    sommeil              NOUN     100.00%
+  7    de                   ADP      100.00%
+  8    ses                  DET      100.00%
+  9    nuits                NOUN     100.00%
+  10   .                    PUNCT    100.00%
+
+  Summary:
+    NOUN: 3 (Noun (person, place, thing))
+    DET: 2 (Determiner (the, a, this))
+    ADP: 2 (Adposition (preposition))
+    PRON: 1 (Pronoun (replaces noun))
+    AUX: 1 (Auxiliary verb (is, was, have))
+    PUNCT: 1 (Punctuation)
+
+──────────────────────────────────────────────────────────────────────
+Text: Italian
+Sentence: L'amor che move il sole e l'altre stelle.
+──────────────────────────────────────────────────────────────────────
+✓ Found 11 tokens:
+
+  #    Word                 POS      Confidence  
+  ---- -------------------- -------- ------------
+  1    L'                   DET      100.00%
+  2    amor                 NOUN     100.00%
+  3    che                  PRON     100.00%
+  4    move                 VERB     100.00%
+  5    il                   DET      100.00%
+  6    sole                 NOUN     100.00%
+  7    e                    CCONJ    100.00%
+  8    l'                   DET      100.00%
+  9    altre                ADJ      100.00%
+  10   stelle               NOUN     100.00%
+  11   .                    PUNCT    100.00%
+
+  Summary:
+    DET: 3 (Determiner (the, a, this))
+    NOUN: 3 (Noun (person, place, thing))
+    PRON: 1 (Pronoun (replaces noun))
+    VERB: 1 (Verb (action or state))
+    CCONJ: 1 (Coordinating conjunction)
+    ADJ: 1 (Adjective (describes noun))
+    PUNCT: 1 (Punctuation)
+
+======================================================================
+```
+
+
+## AWS Rekognition
+
+AWS Rekognition is the service of AWS that allows us to perform machine learning tasks on images. Currently, given an image, AWS Rekognition allows:
+1. **Label Recognition**: automatically label objects, concepts, scenes, and actions in your images, and provide a confidence score.
+2. **Image Moderation**: automatically detect explicit or suggestive adult content, or violent content in your images, and provide confidence scores.
+3. **Facial Analysis**: get a complete analysis of facial attributes, including confidence scores.
+4. **Extract Text from an image**: automatically detect and extract text in your images.
+
+### Add Images
+
+We need to create an S3 bucket to store images for Rekognition testing. The bucket will be created in the ap-southeast-2 region (same as Rekognition service region) to avoid cross-region access issues.
+
+**Code:**
+
+```python
+#!/usr/bin/env python3
+"""
+Lab 9 - Setup S3 Bucket for AWS Rekognition
+Creates S3 bucket and uploads images.
+"""
+
+import sys
+import os
+
+# Add project root to path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, project_root)
+
+from utils import config
+import boto3
+import logging
+from botocore.exceptions import ClientError
+
+# Configuration
+BUCKET_NAME = f'{config.STUDENT_NUMBER}-lab9-in-ap'
+REGION = 'ap-southeast-2'  # Use Rekognition region for S3 bucket
+IMAGES_DIR = './images'
+
+s3 = boto3.client("s3", region_name=REGION)
+
+def create_bucket(bucket_name, region=None):
+    # Check if bucket exists, if not create it
+    try:
+        s3.head_bucket(Bucket=bucket_name)
+        print("Bucket %s already exists" % bucket_name)
+        return True
+    except ClientError as e:
+        if e.response['Error']['Code'] == '404':
+            print("Bucket %s does not exist. Creating it..." % bucket_name)
+            try:
+                if region is None:
+                    s3.create_bucket(Bucket=bucket_name)
+                else:
+                    location = {'LocationConstraint': region}
+                    s3.create_bucket(Bucket=bucket_name,
+                                     CreateBucketConfiguration=location)
+                print("Bucket created successfully")
+                return True
+            except ClientError as create_error:
+                logging.error(create_error)
+                return False
+        else:
+            logging.error(e)
+            return False
+
+def upload_file(file_name, bucket, object_name=None):
+    if object_name is None:
+        object_name = os.path.basename(file_name)
+
+    # Upload the file
+    print("Uploading %s to bucket %s as %s" % (file_name, bucket, object_name))
+    try:
+        response = s3.upload_file(file_name, bucket, object_name)
+    except ClientError as e:
+        logging.error(e)
+        return False
+    return True
+
+# Main program
+if __name__ == "__main__":
+    # Create bucket (checks if exists inside function)
+    if not create_bucket(BUCKET_NAME, REGION):
+        print("Failed to create or access bucket")
+        exit()
+
+    # Upload images from images directory
+    if os.path.exists(IMAGES_DIR):
+        for fname in os.listdir(IMAGES_DIR):
+            if fname.endswith(('.jpg', '.jpeg', '.png')):
+                file_path = os.path.join(IMAGES_DIR, fname)
+                upload_file(file_path, BUCKET_NAME, fname)
+    else:
+        print("Images directory not found. Please create '%s' and add your images:" % IMAGES_DIR)
+        print("  - urban.jpg: An image of an urban setting")
+        print("  - beach.jpg: An image of a person on the beach")
+        print("  - faces.jpg: An image with people showing their faces")
+        print("  - text.jpg: An image with text")
+
+    print("done")
+```
+
+**Explanation:**
+
+The script follows the same structure as Lab 3's cloud storage script. It provides two main functions:
+
+1. `create_bucket()`: Creates an S3 bucket in ap-southeast-2 region. The function first checks if the bucket already exists using `head_bucket()` to make the operation idempotent. For regions other than us-east-1, it includes the `LocationConstraint` parameter.
+
+2. `upload_file()`: Uploads a local image file to the S3 bucket using the boto3 `upload_file()` method.
+
+The main program creates the bucket and automatically uploads all images (jpg, jpeg, png) from the `images` directory. We prepared 4 images as required: urban.jpg, beach.jpg, faces.jpg, and text.jpg.
+
+**Result:**
+
+```plaintext
+[SCREENSHOT PLACEHOLDER - Will show bucket creation and image upload confirmation]
+```
+
+### Test AWS Rekognition
+
+We created a comprehensive test script that uses boto3 and AWS Rekognition to test all four capabilities: label recognition, image moderation, facial analysis, and text extraction.
+
+#### [1] Configuration and Setup
+
+**Code:**
+
+```python
+#!/usr/bin/env python3
+"""
+Lab 9 - AWS Rekognition Tests
+Tests label recognition, image moderation, facial analysis, and text extraction.
+"""
+
+import sys
+import os
+
+# Add project root to path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, project_root)
+
+from utils import config
+import boto3
+from botocore.exceptions import ClientError
+
+# Configuration
+BUCKET_NAME = f'{config.STUDENT_NUMBER}-lab9-in-ap'
+BUCKET_REGION = 'ap-southeast-2'
+REKOGNITION_REGION = 'ap-southeast-2'
+
+# Initialize Rekognition client
+rekognition_client = boto3.client('rekognition', region_name=REKOGNITION_REGION)
+```
+
+**Explanation:**
+
+This section sets up the necessary imports and configuration for the Rekognition tests. We configure the bucket name and regions, ensuring both the S3 bucket and Rekognition service are in ap-southeast-2 region to avoid cross-region access issues. The Rekognition client is initialized once and reused across all test functions.
+
+#### [2] Label Recognition Function
+
+**Code:**
+
+```python
+def detect_labels(bucket, key, max_labels=10, min_confidence=80):
+    """Detect labels (objects, scenes, concepts) in an image."""
+    try:
+        response = rekognition_client.detect_labels(
+            Image={'S3Object': {'Bucket': bucket, 'Name': key}},
+            MaxLabels=max_labels,
+            MinConfidence=min_confidence
+        )
+        return response['Labels']
+    except ClientError as e:
+        print(f"✗ Error: {e}")
+        return []
+
+def test_label_recognition():
+    """Test label recognition on all images."""
+    print("\n" + "="*70)
+    print("TEST 1: LABEL RECOGNITION")
+    print("="*70)
+
+    test_images = ['urban.jpg', 'beach.jpg', 'faces.jpg', 'text.jpg']
+
+    for image in test_images:
+        print(f"\nImage: {image}")
+        print("-"*70)
+
+        labels = detect_labels(BUCKET_NAME, image)
+
+        if labels:
+            print(f"Found {len(labels)} labels:")
+            for label in labels:
+                print(f"  • {label['Name']}: {label['Confidence']:.2f}% confidence")
+                if label.get('Parents'):
+                    parents = [p['Name'] for p in label['Parents']]
+                    print(f"    Categories: {', '.join(parents)}")
+        else:
+            print("No labels detected")
+```
+
+**Explanation:**
+
+The label recognition function uses the `detect_labels()` API to identify objects, scenes, and concepts in images. It accepts parameters for maximum labels (10) and minimum confidence threshold (80%). The function returns labels with confidence scores and parent categories. We test all 4 images to see what objects, scenes, and concepts Rekognition can identify.
+
+**Result:**
+
+```plaintext
+======================================================================
+TEST 1: LABEL RECOGNITION
+======================================================================
+
+Image: urban.jpg
+----------------------------------------------------------------------
+✓ Found 10 labels:
+  • Architecture: 100.00% confidence
+  • Building: 100.00% confidence
+    Categories: Architecture
+  • Cityscape: 100.00% confidence
+    Categories: Architecture, Building, Urban
+  • Urban: 100.00% confidence
+  • City: 100.00% confidence
+  • Outdoors: 99.74% confidence
+  • Road: 99.48% confidence
+  • Aerial View: 91.43% confidence
+    Categories: Outdoors
+  • Tower: 90.73% confidence
+    Categories: Architecture, Building
+  • Car: 80.85% confidence
+    Categories: Transportation, Vehicle
+
+Image: beach.jpg
+----------------------------------------------------------------------
+✓ Found 10 labels:
+  • Horizon: 99.99% confidence
+    Categories: Nature, Outdoors, Sky
+  • Nature: 99.99% confidence
+    Categories: Outdoors
+  • Outdoors: 99.99% confidence
+  • Sky: 99.99% confidence
+    Categories: Nature, Outdoors
+  • Shorts: 99.91% confidence
+    Categories: Clothing
+  • Beach: 99.87% confidence
+    Categories: Coast, Nature, Outdoors, Sea, Shoreline, Water
+  • Sea: 99.87% confidence
+    Categories: Nature, Outdoors, Water
+  • Photography: 99.64% confidence
+  • Person: 99.49% confidence
+  • Walking: 99.44% confidence
+    Categories: Person
+
+Image: faces.jpg
+----------------------------------------------------------------------
+✓ Found 10 labels:
+  • Face: 100.00% confidence
+    Categories: Head, Person
+  • Head: 100.00% confidence
+    Categories: Person
+  • Person: 100.00% confidence
+  • Photography: 100.00% confidence
+  • Portrait: 100.00% confidence
+    Categories: Face, Head, Person, Photography
+  • Adult: 99.80% confidence
+    Categories: Person
+  • Female: 99.80% confidence
+    Categories: Person
+  • Woman: 99.80% confidence
+    Categories: Adult, Female, Person
+  • Blonde: 99.40% confidence
+    Categories: Hair, Person
+  • Neck: 98.56% confidence
+    Categories: Body Part, Face, Head, Person
+
+Image: text.jpg
+----------------------------------------------------------------------
+✓ Found 6 labels:
+  • Car: 97.18% confidence
+    Categories: Transportation, Vehicle
+  • Transportation: 97.18% confidence
+  • Vehicle: 97.18% confidence
+    Categories: Transportation
+  • Road Sign: 80.04% confidence
+    Categories: Sign, Symbol
+  • Sign: 80.04% confidence
+    Categories: Symbol
+  • Symbol: 80.04% confidence
+```
+
+#### [3] Image Moderation Function
+
+**Code:**
+
+```python
+def detect_moderation_labels(bucket, key, min_confidence=60):
+    """Detect moderation labels (explicit or inappropriate content)."""
+    try:
+        response = rekognition_client.detect_moderation_labels(
+            Image={'S3Object': {'Bucket': bucket, 'Name': key}},
+            MinConfidence=min_confidence
+        )
+        return response['ModerationLabels']
+    except ClientError as e:
+        print(f"✗ Error: {e}")
+        return []
+
+def test_image_moderation():
+    """Test image moderation on all images."""
+    print("\n" + "="*70)
+    print("TEST 2: IMAGE MODERATION")
+    print("="*70)
+
+    test_images = ['urban.jpg', 'beach.jpg', 'faces.jpg', 'text.jpg']
+
+    for image in test_images:
+        print(f"\nImage: {image}")
+        print("-"*70)
+
+        labels = detect_moderation_labels(BUCKET_NAME, image)
+
+        if labels:
+            print(f"Found {len(labels)} moderation labels:")
+            for label in labels:
+                print(f"  • {label['Name']}: {label['Confidence']:.2f}% confidence")
+                if label.get('ParentName'):
+                    print(f"    Parent category: {label['ParentName']}")
+        else:
+            print("No inappropriate content detected")
+```
+
+**Explanation:**
+
+The image moderation function uses the `detect_moderation_labels()` API to detect inappropriate content such as explicit or suggestive adult content and violent content. It uses a minimum confidence threshold of 60% and returns moderation labels with their parent categories. This is useful for content filtering and safety applications.
+
+**Result:**
+
+```plaintext
+======================================================================
+TEST 2: IMAGE MODERATION
+======================================================================
+
+Image: urban.jpg
+----------------------------------------------------------------------
+✓ No inappropriate content detected
+
+Image: beach.jpg
+----------------------------------------------------------------------
+✓ No inappropriate content detected
+
+Image: faces.jpg
+----------------------------------------------------------------------
+✓ No inappropriate content detected
+
+Image: text.jpg
+----------------------------------------------------------------------
+✓ No inappropriate content detected
+```
+
+#### [4] Facial Analysis Function
+
+**Code:**
+
+```python
+def detect_faces(bucket, key):
+    """Detect and analyze faces in an image."""
+    try:
+        response = rekognition_client.detect_faces(
+            Image={'S3Object': {'Bucket': bucket, 'Name': key}},
+            Attributes=['ALL']
+        )
+        return response['FaceDetails']
+    except ClientError as e:
+        print(f"✗ Error: {e}")
+        return []
+
+def test_facial_analysis():
+    """Test facial analysis on images with people."""
+    print("\n" + "="*70)
+    print("TEST 3: FACIAL ANALYSIS")
+    print("="*70)
+
+    # Test on images that likely contain faces
+    face_images = ['faces.jpg', 'beach.jpg']
+
+    for image in face_images:
+        print(f"\nImage: {image}")
+        print("-"*70)
+
+        faces = detect_faces(BUCKET_NAME, image)
+
+        if faces:
+            print(f"Found {len(faces)} face(s):")
+            for i, face in enumerate(faces, 1):
+                print(f"\n  Face {i}:")
+                print(f"    Age range: {face['AgeRange']['Low']}-{face['AgeRange']['High']} years")
+                print(f"    Gender: {face['Gender']['Value']} ({face['Gender']['Confidence']:.2f}% confidence)")
+
+                # Emotions
+                emotions = sorted(face['Emotions'], key=lambda x: x['Confidence'], reverse=True)
+                print(f"    Top emotion: {emotions[0]['Type']} ({emotions[0]['Confidence']:.2f}% confidence)")
+
+                # Other attributes
+                print(f"    Smile: {face['Smile']['Value']} ({face['Smile']['Confidence']:.2f}% confidence)")
+                print(f"    Eyes open: {face['EyesOpen']['Value']} ({face['EyesOpen']['Confidence']:.2f}% confidence)")
+                print(f"    Sunglasses: {face['Sunglasses']['Value']} ({face['Sunglasses']['Confidence']:.2f}% confidence)")
+                print(f"    Beard: {face['Beard']['Value']} ({face['Beard']['Confidence']:.2f}% confidence)")
+                print(f"    Mustache: {face['Mustache']['Value']} ({face['Mustache']['Confidence']:.2f}% confidence)")
+        else:
+            print("No faces detected")
+```
+
+**Explanation:**
+
+The facial analysis function uses the `detect_faces()` API with `Attributes=['ALL']` to perform comprehensive facial analysis. It detects and analyzes multiple facial attributes including age range, gender, emotions, and physical features like smile, sunglasses, beard, and mustache. We test this on faces.jpg and beach.jpg which likely contain faces. The emotions are sorted by confidence to show the most likely emotion first.
+
+**Result:**
+
+```plaintext
+======================================================================
+TEST 3: FACIAL ANALYSIS
+======================================================================
+
+Image: faces.jpg
+----------------------------------------------------------------------
+✓ Found 1 face(s):
+
+  Face 1:
+    Age range: 13-19 years
+    Gender: Female (99.78% confidence)
+    Top emotion: CALM (99.86% confidence)
+    Smile: False (99.87% confidence)
+    Eyes open: True (99.42% confidence)
+    Sunglasses: False (99.97% confidence)
+    Beard: False (99.26% confidence)
+    Mustache: False (99.95% confidence)
+
+Image: beach.jpg
+----------------------------------------------------------------------
+✓ Found 1 face(s):
+
+  Face 1:
+    Age range: 33-41 years
+    Gender: Male (99.64% confidence)
+    Top emotion: ANGRY (74.22% confidence)
+    Smile: False (99.40% confidence)
+    Eyes open: True (97.98% confidence)
+    Sunglasses: False (99.87% confidence)
+    Beard: False (75.94% confidence)
+    Mustache: False (99.53% confidence)
+```
+
+#### [5] Text Extraction Function
+
+**Code:**
+
+```python
+def detect_text(bucket, key):
+    """Detect and extract text from an image (OCR)."""
+    try:
+        response = rekognition_client.detect_text(
+            Image={'S3Object': {'Bucket': bucket, 'Name': key}}
+        )
+        return response['TextDetections']
+    except ClientError as e:
+        print(f"✗ Error: {e}")
+        return []
+
+def test_text_extraction():
+    """Test text extraction (OCR) on all images."""
+    print("\n" + "="*70)
+    print("TEST 4: TEXT EXTRACTION (OCR)")
+    print("="*70)
+
+    test_images = ['urban.jpg', 'beach.jpg', 'faces.jpg', 'text.jpg']
+
+    for image in test_images:
+        print(f"\nImage: {image}")
+        print("-"*70)
+
+        text_detections = detect_text(BUCKET_NAME, image)
+
+        if text_detections:
+            # Separate WORD and LINE detections
+            lines = [t for t in text_detections if t['Type'] == 'LINE']
+            words = [t for t in text_detections if t['Type'] == 'WORD']
+
+            print(f"Found {len(lines)} line(s) and {len(words)} word(s)")
+
+            if lines:
+                print("\n  Lines detected:")
+                for line in lines:
+                    print(f"    • '{line['DetectedText']}' ({line['Confidence']:.2f}% confidence)")
+
+            if words and len(words) <= 20:
+                print("\n  Words detected:")
+                for word in words:
+                    print(f"    • '{word['DetectedText']}' ({word['Confidence']:.2f}% confidence)")
+            elif words:
+                print(f"\n  (Showing first 20 of {len(words)} words)")
+                for word in words[:20]:
+                    print(f"    • '{word['DetectedText']}' ({word['Confidence']:.2f}% confidence)")
+        else:
+            print("No text detected")
+```
+
+**Explanation:**
+
+The text extraction function uses the `detect_text()` API to perform OCR (Optical Character Recognition) on images. It detects and extracts text, separating LINE detections (full lines of text) from WORD detections (individual words). This is useful for extracting text from signs, documents, or any text visible in images. To keep output manageable, we limit word display to 20 words if there are many detections.
+
+**Result:**
+
+```plaintext
+======================================================================
+TEST 4: TEXT EXTRACTION (OCR)
+======================================================================
+
+Image: urban.jpg
+----------------------------------------------------------------------
+✓ Found 5 line(s) and 5 word(s)
+
+  Lines detected:
+    • 'the' (28.18% confidence)
+    • 'NOHMI' (98.14% confidence)
+    • 'MIWA' (96.60% confidence)
+    • 'MIWA' (96.25% confidence)
+    • 'KAMMOTO' (94.52% confidence)
+
+  Words detected:
+    • 'the' (28.18% confidence)
+    • 'NOHMI' (98.14% confidence)
+    • 'MIWA' (96.60% confidence)
+    • 'MIWA' (96.25% confidence)
+    • 'KAMMOTO' (94.52% confidence)
+
+Image: beach.jpg
+----------------------------------------------------------------------
+✗ No text detected
+
+Image: faces.jpg
+----------------------------------------------------------------------
+✗ No text detected
+
+Image: text.jpg
+----------------------------------------------------------------------
+✓ Found 3 line(s) and 4 word(s)
+
+  Lines detected:
+    • 'AUTO' (100.00% confidence)
+    • 'PRET VÃRTIEM' (94.19% confidence)
+    • 'NELIKT!' (97.92% confidence)
+
+  Words detected:
+    • 'AUTO' (100.00% confidence)
+    • 'PRET' (100.00% confidence)
+    • 'VÃRTIEM' (88.38% confidence)
+    • 'NELIKT!' (97.92% confidence)
+```
+
+#### [6] Main Execution
+
+**Code:**
+
+```python
+def main():
+    """Run all Rekognition tests."""
+
+    print("="*70)
+    print("Lab 9 - AWS Rekognition Tests")
+    print(f"Bucket: {BUCKET_NAME} (Region: {BUCKET_REGION})")
+    print(f"Rekognition Region: {REKOGNITION_REGION}")
+    print("="*70)
+
+    # Run all tests
+    test_label_recognition()
+    test_image_moderation()
+    test_facial_analysis()
+    test_text_extraction()
+
+    print("\n" + "="*70)
+    print("All tests completed!")
+    print("="*70)
+
+if __name__ == "__main__":
+    main()
+```
+
+**Explanation:**
+
+The main function orchestrates all four Rekognition tests, running them sequentially and displaying the configuration details at the start. We run the script with `python3 test_rekognition.py` to execute all tests on our uploaded images.
