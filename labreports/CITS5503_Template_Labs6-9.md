@@ -712,7 +712,56 @@ python3 manage.py runserver 8000
 
 The Django application successfully connected to AWS DynamoDB, retrieved the file metadata, and displayed it through the web interface.
 
-![image-20250922182128224](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20250922182128224.png) 
+![image-20250922182128224](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20250922182128224.png)
+
+## AWS Resource Termination
+
+After completing Lab 6, it is important to terminate all AWS resources created during this lab to avoid unnecessary charges. The following resources were created and need to be terminated:
+
+1. **EC2 Instance** (`24745401-vm-lab6`)
+2. **Application Load Balancer** (`24745401-alb-lab6`)
+3. **Security Group** (`24745401-sg-lab6`)
+4. **Key Pair** (`24745401-key-lab6`)
+
+### Termination Steps
+
+All resources can be terminated through the AWS Management Console:
+
+**1. Terminate the Application Load Balancer:**
+   - Navigate to EC2 Console → Load Balancers
+   - Select the load balancer `24745401-alb-lab6`
+   - Click Actions → Delete
+   - Confirm the deletion
+
+![image-20251011074017676](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20251011074017676.png) 
+
+**3. Terminate the EC2 Instance:**
+   - Navigate to EC2 Console → Instances
+   - Select the instance `24745401-vm-lab6`
+   - Click Instance State → Terminate instance
+   - Confirm the termination
+
+![image-20251011074121502](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20251011074121502.png) 
+
+**4. Delete the Security Group:**
+   - Navigate to EC2 Console → Security Groups
+   - Select the security group `24745401-sg-lab6`
+   - Click Actions → Delete security groups
+   - Confirm the deletion
+   - Note: The security group can only be deleted after the EC2 instance is fully terminated
+
+![image-20251011074347212](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20251011074347212.png) 
+
+**5. Delete the Key Pair:**
+
+   - Navigate to EC2 Console → Key Pairs
+   - Select the key pair `24745401-key-lab6`
+   - Click Actions → Delete
+   - Confirm the deletion
+
+![image-20251011074507708](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20251011074507708.png) 
+
+After completing these steps, all AWS resources created for Lab 6 have been terminated and will no longer incur charges.
 
 <div style="page-break-after: always;"></div>
 
@@ -1319,7 +1368,57 @@ python3 fabric_manager.py restart
 
 The restart command performed a clean stop followed by start operation, demonstrating complete service lifecycle management.
 
-![image-20250923230042341](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20250923230042341.png) 
+![image-20250923230042341](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20250923230042341.png)
+
+## AWS Resource Termination
+
+After completing Lab 7, it is important to terminate all AWS resources created during this lab to avoid unnecessary charges. The following resources were created and need to be terminated:
+
+1. **EC2 Instance** (`24745401-vm-lab7`)
+2. **Security Group** (`24745401-sg-lab7`)
+3. **Key Pair** (`24745401-key-lab7`)
+4. **DynamoDB Table** (`UserFiles`)
+
+### Termination Steps
+
+All resources can be terminated through the AWS Management Console:
+
+**1. Terminate the EC2 Instance:**
+   - Navigate to EC2 Console → Instances
+   - Select the instance `24745401-vm-lab7`
+   - Click Instance State → Terminate instance
+   - Confirm the termination
+
+![image-20251011075530866](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20251011075530866.png) 
+
+**2. Delete the Security Group:**
+   - Navigate to EC2 Console → Security Groups
+   - Select the security group `24745401-sg-lab7`
+   - Click Actions → Delete security groups
+   - Confirm the deletion
+   - Note: The security group can only be deleted after the EC2 instance is fully terminated
+
+![image-20251011075820371](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20251011075820371.png) 
+
+**3. Delete the Key Pair:**
+
+   - Navigate to EC2 Console → Key Pairs
+   - Select the key pair `24745401-key-lab7`
+   - Click Actions → Delete
+   - Confirm the deletion
+
+![image-20251011075728711](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20251011075728711.png) 
+
+**4. Delete the DynamoDB Table:**
+
+   - Navigate to DynamoDB → Tables
+   - Select the table `UserFiles`
+   - Click Actions → Delete Table
+   - Confirm the deletion
+
+![image-20251011075912541](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20251011075912541.png) 
+
+After completing these steps, all AWS resources created for Lab 7 have been terminated and will no longer incur charges.
 
 <div style="page-break-after: always;"></div>
 
@@ -1750,6 +1849,67 @@ I also confirmed all the training result was successfully uploaded to my newly-c
 
 ![image_2025-10-06_08-44-29](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image_2025-10-06_08-44-29.png)
 
+## AWS Resource Termination
+
+After completing Lab 8, it is important to terminate all AWS resources created during this lab to avoid unnecessary charges. The following resources were created and need to be terminated:
+
+1. **ECS Cluster** (`24745401-cluster`)
+2. **ECS Service** (running in the cluster)
+3. **ECS Task Definition** (`24745401-lab8`)
+4. **ECR Repository** (`24745401_ecr_repo`)
+5. **S3 Bucket** (created for SageMaker training results)
+
+### Termination Steps
+
+All resources can be terminated through the AWS Management Console:
+
+**1. Stop and Delete ECS Service:**
+   - Navigate to ECS Console → Clusters → `24745401-cluster`
+   - Select the service(`24745401-service`)
+   - Click Update → Set Desired tasks to 0 → Update service
+   - Wait for tasks to stop
+   - Click Delete → Confirm deletion
+
+![image-20251011081125148](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20251011081125148.png) 
+
+**2. Delete ECS Cluster:**
+   - Navigate to ECS Console → Clusters
+   - Select `24745401-cluster`
+   - Click Delete Cluster
+   - Confirm deletion
+
+![image-20251011081216852](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20251011081216852.png)
+
+**3. Deregister Task Definitions:**
+   - Navigate to ECS Console → Task Definitions
+   - Select `24745401-task-family`
+   - Select all revisions → Actions → Deregister
+   - Confirm deregistration
+
+![image-20251011081335911](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20251011081335911.png)
+
+**4. Delete ECR Repository:**
+   - Navigate to ECR Console → Repositories
+   - Select `24745401_ecr_repo`
+   - Click Delete
+   - Confirm deletion (this will also delete all images in the repository)
+
+![image-20251011081428595](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20251011081428595.png) 
+
+**5. Delete S3 Bucket:**
+   - Navigate to S3 Console
+   - Select the bucket created for SageMaker results
+   - Click Empty → Confirm
+   - Click Delete → Confirm deletion
+
+![image-20251011081624925](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20251011081624925.png) 
+
+![image-20251011081713344](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20251011081713344.png)
+
+After completing these steps, all AWS resources created for Lab 8 have been terminated and will no longer incur charges.
+
+<div style="page-break-after: always;"></div>
+
 # Lab 9
 
 ## AWS Comprehend - Natural Language Processing
@@ -1760,7 +1920,7 @@ I also confirmed all the training result was successfully uploaded to my newly-c
 
 The first task required modifying the provided code to detect different languages and return a user-friendly message showing the language name (not just the code) with confidence as a percentage.
 
-#### Code:
+##### Code:
 
 ```python
 #!/usr/bin/env python3
@@ -1815,7 +1975,7 @@ def detect_language(text):
         return None, 0
 ```
 
-#### Explanation:
+##### Explanation:
 
 This implementation enhances the basic language detection code provided in the lab worksheet:
 
@@ -1831,7 +1991,7 @@ This implementation enhances the basic language detection code provided in the l
 
 I tested the language detection script with all four texts provided in the lab worksheet: English, Spanish, French, and Italian.
 
-#### Code:
+##### Code:
 
 ```python
 def main():
@@ -1871,7 +2031,7 @@ if __name__ == "__main__":
     main()
 ```
 
-#### Result:
+##### Result:
 
 After running the script, all four languages were successfully detected with high confidence:
 ```plaintext
@@ -2702,7 +2862,7 @@ AWS Rekognition is the service of AWS that allows us to perform machine learning
 
 We need to create an S3 bucket to store images for Rekognition testing. The bucket will be created in the ap-southeast-2 region (same as Rekognition service region) to avoid cross-region access issues.
 
-**Code:**
+#### **Code:**
 
 ```python
 #!/usr/bin/env python3
@@ -2791,7 +2951,7 @@ if __name__ == "__main__":
     print("done")
 ```
 
-**Explanation:**
+#### **Explanation:**
 
 The script follows the same structure as Lab 3's cloud storage script. It provides two main functions:
 
@@ -2801,7 +2961,7 @@ The script follows the same structure as Lab 3's cloud storage script. It provid
 
 The main program creates the bucket and automatically uploads all images (jpg, jpeg, png) from the `images` directory. We prepared 4 images as required: urban.jpg, beach.jpg, faces.jpg, and text.jpg.
 
-**Result:**
+#### **Result:**
 
 ```plaintext
 [SCREENSHOT PLACEHOLDER - Will show bucket creation and image upload confirmation]
@@ -2813,7 +2973,7 @@ We created a comprehensive test script that uses boto3 and AWS Rekognition to te
 
 #### [1] Configuration and Setup
 
-**Code:**
+##### **Code:**
 
 ```python
 #!/usr/bin/env python3
@@ -2842,13 +3002,13 @@ REKOGNITION_REGION = 'ap-southeast-2'
 rekognition_client = boto3.client('rekognition', region_name=REKOGNITION_REGION)
 ```
 
-**Explanation:**
+##### **Explanation:**
 
 This section sets up the necessary imports and configuration for the Rekognition tests. We configure the bucket name and regions, ensuring both the S3 bucket and Rekognition service are in ap-southeast-2 region to avoid cross-region access issues. The Rekognition client is initialized once and reused across all test functions.
 
 #### [2] Label Recognition Function
 
-**Code:**
+##### **Code:**
 
 ```python
 def detect_labels(bucket, key, max_labels=10, min_confidence=80):
@@ -2889,11 +3049,11 @@ def test_label_recognition():
             print("No labels detected")
 ```
 
-**Explanation:**
+##### **Explanation:**
 
 The label recognition function uses the `detect_labels()` API to identify objects, scenes, and concepts in images. It accepts parameters for maximum labels (10) and minimum confidence threshold (80%). The function returns labels with confidence scores and parent categories. We test all 4 images to see what objects, scenes, and concepts Rekognition can identify.
 
-**Result:**
+##### **Result:**
 
 ```plaintext
 ======================================================================
@@ -2979,7 +3139,7 @@ Image: text.jpg
 
 #### [3] Image Moderation Function
 
-**Code:**
+##### **Code:**
 
 ```python
 def detect_moderation_labels(bucket, key, min_confidence=60):
@@ -3018,11 +3178,11 @@ def test_image_moderation():
             print("No inappropriate content detected")
 ```
 
-**Explanation:**
+##### **Explanation:**
 
 The image moderation function uses the `detect_moderation_labels()` API to detect inappropriate content such as explicit or suggestive adult content and violent content. It uses a minimum confidence threshold of 60% and returns moderation labels with their parent categories. This is useful for content filtering and safety applications.
 
-**Result:**
+##### **Result:**
 
 ```plaintext
 ======================================================================
@@ -3048,7 +3208,7 @@ Image: text.jpg
 
 #### [4] Facial Analysis Function
 
-**Code:**
+##### **Code:**
 
 ```python
 def detect_faces(bucket, key):
@@ -3099,11 +3259,11 @@ def test_facial_analysis():
             print("No faces detected")
 ```
 
-**Explanation:**
+##### **Explanation:**
 
 The facial analysis function uses the `detect_faces()` API with `Attributes=['ALL']` to perform comprehensive facial analysis. It detects and analyzes multiple facial attributes including age range, gender, emotions, and physical features like smile, sunglasses, beard, and mustache. We test this on faces.jpg and beach.jpg which likely contain faces. The emotions are sorted by confidence to show the most likely emotion first.
 
-**Result:**
+##### **Result:**
 
 ```plaintext
 ======================================================================
@@ -3141,7 +3301,7 @@ Image: beach.jpg
 
 #### [5] Text Extraction Function
 
-**Code:**
+##### **Code:**
 
 ```python
 def detect_text(bucket, key):
@@ -3193,11 +3353,11 @@ def test_text_extraction():
             print("No text detected")
 ```
 
-**Explanation:**
+##### **Explanation:**
 
 The text extraction function uses the `detect_text()` API to perform OCR (Optical Character Recognition) on images. It detects and extracts text, separating LINE detections (full lines of text) from WORD detections (individual words). This is useful for extracting text from signs, documents, or any text visible in images. To keep output manageable, we limit word display to 20 words if there are many detections.
 
-**Result:**
+##### **Result:**
 
 ```plaintext
 ======================================================================
@@ -3248,7 +3408,7 @@ Image: text.jpg
 
 #### [6] Main Execution
 
-**Code:**
+##### **Code:**
 
 ```python
 def main():
@@ -3274,6 +3434,38 @@ if __name__ == "__main__":
     main()
 ```
 
-**Explanation:**
+##### **Explanation:**
 
 The main function orchestrates all four Rekognition tests, running them sequentially and displaying the configuration details at the start. We run the script with `python3 test_rekognition.py` to execute all tests on our uploaded images.
+
+## AWS Resource Termination
+
+After completing Lab 9, it is important to terminate all AWS resources created during this lab to avoid unnecessary charges. The following resources were created and need to be terminated:
+
+1. **S3 Bucket** (`24745401-lab9-in-ap`)
+2. **S3 Objects** (4 images: urban.jpg, beach.jpg, faces.jpg, text.jpg)
+
+### Termination Steps
+
+All resources can be terminated through the AWS Management Console:
+
+**1. Empty the S3 Bucket:**
+   - Navigate to S3 Console
+   - Select the bucket `24745401-lab9-in-ap`
+   - Click Empty
+   - Type "permanently delete" to confirm
+   - Click Empty
+
+![image-20251011082058052](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20251011082058052.png) 
+
+**2. Delete the S3 Bucket:**
+   - With the bucket still selected
+   - Click Delete
+   - Type the bucket name to confirm deletion
+   - Click Delete bucket
+
+![image-20251011082201603](https://cdn.jsdelivr.net/gh/WitherLzero/myImages@main/img/image-20251011082201603.png) 
+
+**Note:** AWS Comprehend and Rekognition are pay-per-use services that don't create persistent resources. The API calls made during this lab have already been charged, and no additional cleanup is needed for these services.
+
+After completing these steps, all AWS resources created for Lab 9 have been terminated and will no longer incur charges.
